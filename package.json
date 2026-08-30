@@ -1,6 +1,6 @@
 {
   "name": "codex-usage",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Cross-platform terminal meter for Codex 5-hour and weekly usage limits.",
   "type": "module",
