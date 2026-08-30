@@ -300,10 +300,11 @@ struct CircularGauge: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.white.opacity(0.18), lineWidth: 7)
+                .stroke(Color.white.opacity(0.18), lineWidth: 4.2)
             Circle()
-                .trim(from: 0, to: max(0.02, min(1, value / 100)))
-                .stroke(color, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                // Keep the accent arc intentionally compact for the edge widget.
+                .trim(from: 0, to: max(0.02, min(0.70, value / 100)))
+                .stroke(color, style: StrokeStyle(lineWidth: 4.2, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.easeOut(duration: 0.35), value: value)
             OpenAIMark()
@@ -417,7 +418,6 @@ struct UsageCard: View {
 
 struct RailItem: View {
     @ObservedObject var store: UsageStore
-    @Binding var expanded: Bool
 
     private var remaining: Double {
         store.snapshot?.weekly?.remainingPercent ?? 0
@@ -432,64 +432,28 @@ struct RailItem: View {
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(store.errorMessage == nil ? .white : Color.orange)
         }
-        .frame(width: 56, height: 78)
-        .contentShape(Rectangle())
-        .onHover { value in
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                expanded = value
-            }
-        }
-        .onTapGesture {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                expanded.toggle()
-            }
-        }
+        .frame(width: 44, height: 78)
     }
 }
 
 struct WidgetView: View {
     @ObservedObject var store: UsageStore
-    @State private var expanded = false
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            if expanded {
-                UsageCard(store: store)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .trailing)))
-                    .onHover { value in
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                            expanded = value
-                        }
-                    }
-                    .padding(.trailing, 64)
-                    .zIndex(2)
-            }
-
             VStack {
                 Spacer()
-                RailItem(store: store, expanded: $expanded)
+                RailItem(store: store)
                 Spacer()
             }
-            .frame(width: 60, height: 140)
+            .frame(width: 48, height: 140)
             .background(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(Color.black)
             )
             .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
-            .onHover { value in
-                if !value {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
-                        if !expanded { return }
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                            expanded = false
-                        }
-                    }
-                }
-            }
         }
         .frame(width: 410, height: 430)
-        .padding(.trailing, 10)
-        .padding(.vertical, 10)
         .background(Color.clear)
     }
 }
@@ -514,6 +478,9 @@ final class WidgetPanel: NSPanel {
 @MainActor
 final class PanelController {
     private let panel: WidgetPanel
+    private let panelSize = NSSize(width: 410, height: 430)
+    private var mouseMonitor: Any?
+    private var localMouseMonitor: Any?
 
     init(store: UsageStore) {
         panel = WidgetPanel(
@@ -528,19 +495,53 @@ final class PanelController {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.hidesOnDeactivate = false
-        panel.ignoresMouseEvents = false
+        // The widget is a visual indicator only for now. The invisible edge
+        // trigger controls when it appears, so it never blocks the user's apps.
+        panel.ignoresMouseEvents = true
         panel.contentView = NSHostingView(rootView: WidgetView(store: store))
     }
 
-    func show() {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-        let visible = screen.visibleFrame
-        let size = NSSize(width: 410, height: 430)
+    func startEdgeReveal() {
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+            let location = NSEvent.mouseLocation
+            Task { @MainActor [weak self] in
+                self?.updateVisibility(for: location)
+            }
+        }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
+            let location = NSEvent.mouseLocation
+            Task { @MainActor [weak self] in
+                self?.updateVisibility(for: location)
+            }
+            return event
+        }
+        updateVisibility(for: NSEvent.mouseLocation)
+    }
+
+    deinit {
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
+        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+    }
+
+    private func updateVisibility(for location: NSPoint) {
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(location) })
+                ?? NSScreen.main else { return }
+        let edge = screen.frame.maxX
+        let isAtRightEdge = location.x >= edge - 3
+        if isAtRightEdge {
+            reveal(on: screen)
+        } else {
+            panel.orderOut(nil)
+        }
+    }
+
+    private func reveal(on screen: NSScreen) {
+        let frame = screen.frame
         let origin = NSPoint(
-            x: visible.maxX - size.width + 8,
-            y: visible.midY - size.height / 2
+            x: frame.maxX - panelSize.width,
+            y: frame.midY - panelSize.height / 2
         )
-        panel.setFrame(NSRect(origin: origin, size: size), display: true)
+        panel.setFrame(NSRect(origin: origin, size: panelSize), display: true)
         panel.orderFrontRegardless()
     }
 }
@@ -554,7 +555,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         panelController = PanelController(store: store)
-        panelController?.show()
+        panelController?.startEdgeReveal()
         store.start()
         setupStatusItem()
     }
