@@ -1,29 +1,39 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createInterface } from "node:readline";
-import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import { FIVE_HOUR_MINUTES, WEEKLY_MINUTES } from "./usage.mjs";
-
-const DESKTOP_CANDIDATES = [
-  { source: "ChatGPT Desktop", path: "/Applications/ChatGPT.app/Contents/Resources/codex" },
-  { source: "ChatGPT Desktop", path: path.join(os.homedir(), "Applications/ChatGPT.app/Contents/Resources/codex") },
-  { source: "Codex Desktop (legacy)", path: "/Applications/Codex.app/Contents/Resources/codex" },
-  { source: "Codex Desktop (legacy)", path: path.join(os.homedir(), "Applications/Codex.app/Contents/Resources/codex") },
-];
+import { VERSION } from "./meta.mjs";
+import {
+  desktopRuntimeCandidates,
+  fileIsRunnable,
+  findOnPath,
+  makeCommandInvocation,
+} from "./platform.mjs";
 
 export function resolveCodex() {
-  const override = process.env.CODEX_CLI?.trim();
-  if (override) return { command: override, source: "CODEX_CLI" };
+  for (const variable of ["CODEX_CLI", "CODEX_CLI_PATH"]) {
+    const override = process.env[variable]?.trim();
+    if (!override) continue;
+    return {
+      command: findOnPath(override) ?? override,
+      source: variable,
+    };
+  }
 
   const onPath = findOnPath("codex");
   if (onPath) return { command: onPath, source: "PATH" };
 
-  for (const candidate of DESKTOP_CANDIDATES) {
-    if (isExecutable(candidate.path)) return { command: candidate.path, source: candidate.source };
+  for (const candidate of desktopRuntimeCandidates()) {
+    if (fileIsRunnable(candidate.path)) {
+      return { command: candidate.path, source: candidate.source };
+    }
   }
 
-  return { command: "codex", source: "not found" };
+  return {
+    command: process.platform === "win32" ? "codex.exe" : "codex",
+    source: "not found",
+  };
 }
 
 export function resolveCodexCommand() {
@@ -32,39 +42,30 @@ export function resolveCodexCommand() {
 
 export function codexExists() {
   const { command } = resolveCodex();
-  if (command.includes(path.sep)) return isExecutable(command);
+  if (path.isAbsolute(command) || command.includes("/") || command.includes("\\")) {
+    return fileIsRunnable(command);
+  }
   return Boolean(findOnPath(command));
-}
-
-function isExecutable(candidate) {
-  try {
-    fs.accessSync(candidate, fs.constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function findOnPath(command) {
-  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
-    if (!dir) continue;
-    const candidate = path.join(dir, command);
-    if (isExecutable(candidate)) return candidate;
-  }
-  return null;
 }
 
 export function codexVersion() {
   if (!codexExists()) return null;
-  const result = spawnSync(resolveCodexCommand(), ["--version"], { encoding: "utf8", timeout: 5000 });
+  const invocation = makeCommandInvocation(resolveCodexCommand(), ["--version"]);
+  const result = spawnSync(invocation.command, invocation.args, {
+    encoding: "utf8",
+    timeout: 5000,
+    windowsHide: true,
+  });
   return result.status === 0 ? (result.stdout || result.stderr).trim() : null;
 }
 
 export async function fetchUsage({ timeoutMs = 15000 } = {}) {
   const command = resolveCodexCommand();
-  const child = spawn(command, ["app-server", "--stdio"], {
+  const invocation = makeCommandInvocation(command, ["app-server", "--stdio"]);
+  const child = spawn(invocation.command, invocation.args, {
     stdio: ["pipe", "pipe", "pipe"],
     env: process.env,
+    windowsHide: true,
   });
 
   let stderr = "";
@@ -120,7 +121,7 @@ export async function fetchUsage({ timeoutMs = 15000 } = {}) {
     const init = await request({
       id: 1,
       method: "initialize",
-      params: { clientInfo: { name: "codex-usage-mac", version: "1.1.0" }, capabilities: { experimentalApi: true } },
+      params: { clientInfo: { name: "codex-usage", version: VERSION }, capabilities: { experimentalApi: true } },
     });
     throwProtocol(init);
     child.stdin.write(JSON.stringify({ method: "initialized" }) + "\n");
@@ -129,14 +130,14 @@ export async function fetchUsage({ timeoutMs = 15000 } = {}) {
     return parseUsageResponse(response, new Date());
   } catch (err) {
     if (err?.code === "ENOENT") {
-      const e = new Error("Codex runtime was not found. Install Codex CLI or the ChatGPT desktop app with Codex.");
+      const e = new Error("Codex runtime was not found. Install Codex CLI or a Codex desktop runtime.");
       e.code = "CODEX_NOT_FOUND";
       throw e;
     }
     throw err;
   } finally {
     rl.close();
-    child.kill("SIGTERM");
+    if (!child.killed) child.kill();
   }
 }
 
