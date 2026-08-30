@@ -96,8 +96,9 @@ export function renderStatus(snapshot, options) {
   const st = style(supportsStyle(options.plain));
   const card = new Card(Math.max(64, Math.min(92, options.width + 24)), st);
   const en = options.lang === "en";
-  card.top("Codex usage");
-  card.line(`  ${st.dim(formatDateTime(now))}`);
+  card.top(en ? "Codex usage" : "Codex 使用量");
+  card.line(`  ${st.bold(en ? "LIVE SNAPSHOT" : "現在の状況")}  ${st.dim(formatDateTime(now))}`);
+  card.line(`  ${st.dim(en ? "Large number = remaining · ▲ used · ● time pace" : "大きな数値＝残り枠　▲＝実使用　●＝時間経過の目安")}`);
   card.line();
 
   if (snapshot.weekly && weekly) {
@@ -116,37 +117,39 @@ export function renderStatus(snapshot, options) {
   } else {
     card.line(`  ${st.yellow(en ? "5-hour usage unavailable." : "5時間  使用量を取得できませんでした。")}`);
   }
+  card.line();
+  card.line(`  ${st.cyan("●")} ${en ? "now / pace" : "現在 / 目安"}    ${st.yellow("▲")} ${en ? "actual used" : "実使用"}    ${st.dim("░")} ${en ? "night band" : "夜間帯"}`);
   card.bottom();
 }
 
 function renderWindow(card, label, window, analysis, now, options, st, withNight) {
   const en = options.lang === "en";
   const remaining = clamp(100 - window.usedPercent, 0, 100);
-  const left = `${st.bold(label)}  ${st.quota(en ? `${remaining.toFixed(0)}% left` : `${remaining.toFixed(0)}% 残り`, remaining)}  ${st.dim(en ? `· ${window.usedPercent.toFixed(0)}% used` : `· ${window.usedPercent.toFixed(0)}% 実使用`)}`;
-  const right = st.dim(en ? `reset in ${formatUntil(window.resetsAt, now, en)}` : `リセットまで ${formatUntil(window.resetsAt, now, en)}`);
-  card.line(`  ${joinColumns(left, right, Math.max(50, Math.min(86, options.width + 18)))}`);
-  card.line(`        ${st.dim(formatWindowRange(analysis.start, analysis.end))}`);
+  const remainingText = en ? `${remaining.toFixed(0)}% LEFT` : `${remaining.toFixed(0)}% 残り`;
+  const usedText = en ? `${window.usedPercent.toFixed(0)}% used` : `${window.usedPercent.toFixed(0)}% 実使用`;
+  card.line(`  ${st.bold(label)}  ${st.quota(remainingText, remaining)}  ${st.dim(`· ${usedText}`)}`);
+  card.line(`    ${st.dim(formatWindowRange(analysis.start, analysis.end))}    ${st.bold(en ? "RESET" : "リセット")} ${st.quota(formatUntil(window.resetsAt, now, en), remaining)}`);
   const track = renderUsageTrack(analysis.start, analysis.end, options.width, withNight ? options.night : null, analysis.target, analysis.used, !options.plain);
-  card.line(`        ${styleTrack(track, st)}`);
+  card.line(`    ${styleTrack(track, st)}`);
   const nowLegend = st.cyan(en ? `● now ${hhmm(now)}` : `● 今 ${hhmm(now)}`);
-  const targetLegend = st.dim(en ? `target ${analysis.target.toFixed(1)}%` : `使用目安 ${analysis.target.toFixed(1)}%`);
+  const targetLegend = st.dim(en ? `pace ${analysis.target.toFixed(1)}%` : `目安 ${analysis.target.toFixed(1)}%`);
   const usedLegend = st.yellow(en ? `▲ used ${analysis.used.toFixed(1)}%` : `▲ 実使用 ${analysis.used.toFixed(1)}%`);
-  card.line(`        ${nowLegend}   ${targetLegend}   ${usedLegend}`);
-  if (withNight) card.line(st.dim(en ? `        ░ night ${options.night.text.replace("-", "–")}` : `        ░ 夜間 ${options.night.text.replace("-", "–")}`));
+  card.line(`    ${nowLegend}    ${targetLegend}    ${usedLegend}`);
+  if (withNight) card.line(`    ${st.dim(en ? `░ night ${options.night.text.replace("-", "–")}` : `░ 夜間 ${options.night.text.replace("-", "–")}`)}`);
 }
 
 function renderAdvice(card, analysis, now, en, st, weekly) {
-  if (analysis.delta > 0.05) card.line(`        ${st.yellow(en ? `▲ +${analysis.delta.toFixed(1)}pt above target` : `▲ 使用目安より +${analysis.delta.toFixed(1)}pt`)}`);
-  else if (analysis.delta < -0.05) card.line(`        ${st.green(en ? `● ${(-analysis.delta).toFixed(1)}pt headroom` : `● 使用目安より ${(-analysis.delta).toFixed(1)}pt 余裕`)}`);
-  else card.line(`        ${st.green(en ? "● on target" : "● ほぼ使用目安どおり")}`);
+  if (analysis.delta > 0.05) card.line(`    ${st.yellow(en ? `▲ +${analysis.delta.toFixed(1)}pt above target` : `▲ 使用目安より +${analysis.delta.toFixed(1)}pt`)}`);
+  else if (analysis.delta < -0.05) card.line(`    ${st.green(en ? `● ${(-analysis.delta).toFixed(1)}pt headroom` : `● 使用目安より ${(-analysis.delta).toFixed(1)}pt 余裕`)}`);
+  else card.line(`    ${st.green(en ? "● on target" : "● ほぼ使用目安どおり")}`);
   if (analysis.delta > 0.05 && analysis.catchUpAt) {
-    card.line(st.dim(en ? `          ↳ back on target ${formatMoment(analysis.catchUpAt, now, en)} if idle` : `          ↳ 使わなければ ${formatMoment(analysis.catchUpAt, now, en)} に使用目安へ戻る`));
+    card.line(st.dim(en ? `      ↳ back on target ${formatMoment(analysis.catchUpAt, now, en)} if idle` : `      ↳ 使わなければ ${formatMoment(analysis.catchUpAt, now, en)} に使用目安へ戻る`));
   }
   if (weekly && analysis.nextNightEnd && analysis.headroomAtNextNightEnd != null) {
     const h = analysis.headroomAtNextNightEnd, when = formatMoment(analysis.nextNightEnd, now, en);
     card.line(st.dim(en
-      ? h >= 0 ? `          ↳ ${h.toFixed(1)}pt headroom at ${when}` : `          ↳ still ${(-h).toFixed(1)}pt ahead at ${when}`
-      : h >= 0 ? `          ↳ ${when}時点で ${h.toFixed(1)}pt 分の余裕` : `          ↳ ${when}時点でも ${(-h).toFixed(1)}pt 先行`));
+      ? h >= 0 ? `      ↳ ${h.toFixed(1)}pt headroom at ${when}` : `      ↳ still ${(-h).toFixed(1)}pt ahead at ${when}`
+      : h >= 0 ? `      ↳ ${when}時点で ${h.toFixed(1)}pt 分の余裕` : `      ↳ ${when}時点でも ${(-h).toFixed(1)}pt 先行`));
   }
 }
 
@@ -189,11 +192,6 @@ export function toJson(snapshot, options) {
   };
 }
 
-function joinColumns(left, right, width) {
-  const raw = s => s.replace(/\x1b\[[0-9;]*m/g, "");
-  const spaces = Math.max(2, width - [...raw(left)].length - [...raw(right)].length);
-  return left + " ".repeat(spaces) + right;
-}
 function formatWindowRange(start, end) {
   if (sameDay(start, end)) return `${hhmm(start)} → ${hhmm(end)}`;
   return `${mmdd(start)} ${hhmm(start)} → ${mmdd(end)} ${hhmm(end)}`;
