@@ -22,9 +22,10 @@ if (-not $node) {
     exit 1
 }
 
-$nodeMajor = [int](& node -p 'Number(process.versions.node.split(".")[0])')
+$nodeVersion = (& node --version).Trim()
+$nodeMajor = [int](($nodeVersion -replace '^v', '').Split('.')[0])
 if ($LASTEXITCODE -ne 0 -or $nodeMajor -lt 22) {
-    throw "Node.js 22+ is required (found $(& node --version)). Update Node.js and retry."
+    throw "Node.js 22+ is required (found $nodeVersion). Update Node.js and retry."
 }
 
 $sourceRoot = $PSScriptRoot
