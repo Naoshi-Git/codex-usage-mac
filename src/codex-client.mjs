@@ -137,8 +137,20 @@ export async function fetchUsage({ timeoutMs = 15000 } = {}) {
     throw err;
   } finally {
     rl.close();
-    if (!child.killed) child.kill();
+    terminateChild(child);
   }
+}
+
+function terminateChild(child) {
+  if (child.killed || child.exitCode !== null || !child.pid) return;
+  if (process.platform === "win32") {
+    spawnSync("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    return;
+  }
+  child.kill("SIGTERM");
 }
 
 function throwProtocol(response) {
