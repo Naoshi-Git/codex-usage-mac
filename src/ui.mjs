@@ -8,17 +8,17 @@ export function style(enabled) {
   const paint = (code, text) => enabled ? `${ESC}${code}m${text}${ESC}0m` : text;
   return {
     bold: (t) => paint("1", t),
-    dim: (t) => paint("2;37", t),
-    cyan: (t) => paint("36", t),
-    green: (t) => paint("32", t),
-    yellow: (t) => paint("33", t),
-    magenta: (t) => paint("35", t),
-    red: (t) => paint("31", t),
+    dim: (t) => paint("90", t),
+    cyan: (t) => paint("1;36", t),
+    green: (t) => paint("1;32", t),
+    yellow: (t) => paint("1;33", t),
+    magenta: (t) => paint("1;35", t),
+    red: (t) => paint("1;31", t),
     quota: (t, remaining) =>
-      remaining <= 10 ? paint("31", t)
-      : remaining <= 30 ? paint("33", t)
-      : remaining <= 60 ? paint("36", t)
-      : paint("32", t),
+      remaining <= 10 ? paint("1;31", t)
+      : remaining <= 30 ? paint("1;33", t)
+      : remaining <= 60 ? paint("1;36", t)
+      : paint("1;32", t),
     badge: (t, updated) => paint(updated ? "1;30;42" : "1;30;46", ` ${t} `),
   };
 }
