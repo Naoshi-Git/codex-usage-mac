@@ -425,21 +425,23 @@ struct RailItem: View {
 struct EdgeRailShape: Shape {
     func path(in rect: CGRect) -> Path {
         let leftRadius = min(24, min(rect.width, rect.height) / 2)
-        let edgeExtension: CGFloat = 5
+        let edgeExtension: CGFloat = 20
+        let curveSpan = rect.maxX - (rect.minX + leftRadius)
+        let curveReach = curveSpan * 0.5
         var path = Path()
 
-        path.move(to: CGPoint(x: leftRadius, y: rect.minY))
+        path.move(to: CGPoint(x: rect.minX + leftRadius, y: rect.minY))
         path.addCurve(
             to: CGPoint(x: rect.maxX, y: rect.minY - edgeExtension),
-            control1: CGPoint(x: rect.width * 0.54, y: rect.minY),
-            control2: CGPoint(x: rect.maxX - 8, y: rect.minY - edgeExtension)
+            control1: CGPoint(x: rect.minX + leftRadius + curveReach, y: rect.minY),
+            control2: CGPoint(x: rect.maxX - curveReach, y: rect.minY - edgeExtension)
         )
         // C and D are deliberately square; the top and bottom edges flow into them.
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY + edgeExtension))
         path.addCurve(
-            to: CGPoint(x: leftRadius, y: rect.maxY),
-            control1: CGPoint(x: rect.maxX - 8, y: rect.maxY + edgeExtension),
-            control2: CGPoint(x: rect.width * 0.54, y: rect.maxY)
+            to: CGPoint(x: rect.minX + leftRadius, y: rect.maxY),
+            control1: CGPoint(x: rect.maxX - curveReach, y: rect.maxY + edgeExtension),
+            control2: CGPoint(x: rect.minX + leftRadius + curveReach, y: rect.maxY)
         )
         path.addQuadCurve(
             to: CGPoint(x: rect.minX, y: rect.maxY - leftRadius),
