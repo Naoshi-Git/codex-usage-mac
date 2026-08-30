@@ -206,6 +206,17 @@ node ./bin/codex-usage.mjs --help
 
 GitHub Actionsでは macOS runner 上で Node.js 22 / 24 のself-testとシェルスクリプト構文チェックを行います。
 
+## Macアプリ版（Codex Usage）
+
+ターミナルを開かずに使用したい場合は、Codex専用のネイティブMacアプリをビルドできます。画面右端に黒い縦型ウィジェットを表示し、クリックまたはホバーで使用量カードを開きます。
+
+```bash
+macos/CodexUsage/build.sh
+macos/CodexUsage/install.sh
+```
+
+アプリ版は `/Applications/ChatGPT.app/Contents/Resources/codex`、`/Applications/Codex.app/Contents/Resources/codex` などからCodexを探し、ローカルの `account/rateLimits/read` を読み取ります。データは外部サービスへ送信せず、Codexが使っている認証を再利用します。
+
 ## アンインストール
 
 ```bash
