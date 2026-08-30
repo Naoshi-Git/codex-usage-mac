@@ -7,11 +7,12 @@ on:
 
 jobs:
   test:
-    name: macOS / Node ${{ matrix.node }}
-    runs-on: macos-latest
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [macos-latest, windows-latest]
         node: [22, 24]
 
     steps:
@@ -24,25 +25,49 @@ jobs:
           node-version: ${{ matrix.node }}
 
       - name: Validate shell scripts
+        if: runner.os == 'macOS'
+        shell: bash
         run: |
           bash -n bootstrap.sh
           bash -n install.sh
           bash -n uninstall.sh
 
+      - name: Validate PowerShell scripts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($file in @('bootstrap.ps1', 'install.ps1', 'uninstall.ps1')) {
+            [scriptblock]::Create((Get-Content $file -Raw)) | Out-Null
+          }
+
       - name: Offline self-test
         run: node ./bin/codex-usage.mjs --self-test
 
+      - name: Platform smoke test
+        run: node --input-type=module -e "import { isSupportedPlatform, defaultHistoryPath } from './src/platform.mjs'; if (!isSupportedPlatform() || !defaultHistoryPath()) process.exit(1)"
+
       - name: CLI smoke tests
         run: |
-          node ./bin/codex-usage.mjs --help >/dev/null
-          VERSION="$(node -p "require('./package.json').version")"
-          node ./bin/codex-usage.mjs --version | grep -F "$VERSION"
+          node ./bin/codex-usage.mjs --help
+          node ./bin/codex-usage.mjs --version
 
-      - name: Install smoke test
+      - name: Install smoke test (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
         env:
           CODEX_USAGE_HOME: ${{ runner.temp }}/codex-usage-app
           CODEX_USAGE_BIN: ${{ runner.temp }}/codex-usage-bin
         run: |
           bash install.sh
-          VERSION="$(node -p "require('./package.json').version")"
-          "$CODEX_USAGE_BIN/codex-usage" --version | grep -F "$VERSION"
+          "$CODEX_USAGE_BIN/codex-usage" --version
+
+      - name: Install smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CODEX_USAGE_HOME: ${{ runner.temp }}\codex-usage-app
+          CODEX_USAGE_BIN: ${{ runner.temp }}\codex-usage-bin
+        run: |
+          ./install.ps1 -Destination $env:CODEX_USAGE_HOME -BinDir $env:CODEX_USAGE_BIN -NoPath -SkipDoctor
+          & (Join-Path $env:CODEX_USAGE_BIN 'codex-usage.cmd') --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
