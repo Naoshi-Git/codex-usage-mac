@@ -54,29 +54,9 @@ esac
 
 say ""
 say "✓ codex-usage installed and self-test passed"
-
-if ! command -v codex >/dev/null 2>&1; then
-  cat <<'EOF'
-
-Codex CLI is not installed yet.
-
-Official standalone installer:
-  curl -fsSL https://chatgpt.com/codex/install.sh | sh
-
-Alternatives:
-  brew install --cask codex
-  npm install -g @openai/codex
-
-After installation, run:
-  codex
-
-Choose “Sign in with ChatGPT”, then:
-  codex-usage doctor
-EOF
-else
-  say ""
-  say "✓ Codex CLI found: $(command -v codex)"
-fi
+say ""
+say "Codex runtime discovery:"
+node "$INSTALL_ROOT/bin/codex-usage.mjs" doctor || true
 
 if [[ "$PATH_NOTE" -eq 1 ]]; then
   cat <<EOF
@@ -87,13 +67,16 @@ Add this line to ~/.zshrc:
 
 Then reload:
   source ~/.zshrc
-
-Finally run:
-  codex-usage doctor
 EOF
-else
-  say ""
-  say "Next:"
-  say "  codex-usage doctor"
-  say "  codex-usage"
 fi
+
+cat <<'EOF'
+
+Next:
+  codex-usage
+  codex-usage --mascot
+  codex-usage --watch 60 --mascot
+
+Future updates:
+  codex-usage update
+EOF
