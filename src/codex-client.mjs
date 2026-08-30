@@ -1,36 +1,55 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createInterface } from "node:readline";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { FIVE_HOUR_MINUTES, WEEKLY_MINUTES } from "./usage.mjs";
 
-export function resolveCodexCommand() {
+const DESKTOP_CANDIDATES = [
+  { source: "ChatGPT Desktop", path: "/Applications/ChatGPT.app/Contents/Resources/codex" },
+  { source: "ChatGPT Desktop", path: path.join(os.homedir(), "Applications/ChatGPT.app/Contents/Resources/codex") },
+  { source: "Codex Desktop (legacy)", path: "/Applications/Codex.app/Contents/Resources/codex" },
+  { source: "Codex Desktop (legacy)", path: path.join(os.homedir(), "Applications/Codex.app/Contents/Resources/codex") },
+];
+
+export function resolveCodex() {
   const override = process.env.CODEX_CLI?.trim();
-  if (override) return override;
-  return findOnPath("codex") ?? "codex";
+  if (override) return { command: override, source: "CODEX_CLI" };
+
+  const onPath = findOnPath("codex");
+  if (onPath) return { command: onPath, source: "PATH" };
+
+  for (const candidate of DESKTOP_CANDIDATES) {
+    if (isExecutable(candidate.path)) return { command: candidate.path, source: candidate.source };
+  }
+
+  return { command: "codex", source: "not found" };
+}
+
+export function resolveCodexCommand() {
+  return resolveCodex().command;
 }
 
 export function codexExists() {
-  const command = resolveCodexCommand();
-  if (command.includes(path.sep)) {
-    try {
-      fs.accessSync(command, fs.constants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  const { command } = resolveCodex();
+  if (command.includes(path.sep)) return isExecutable(command);
   return Boolean(findOnPath(command));
+}
+
+function isExecutable(candidate) {
+  try {
+    fs.accessSync(candidate, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function findOnPath(command) {
   for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
     if (!dir) continue;
     const candidate = path.join(dir, command);
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
-    } catch {}
+    if (isExecutable(candidate)) return candidate;
   }
   return null;
 }
@@ -101,7 +120,7 @@ export async function fetchUsage({ timeoutMs = 15000 } = {}) {
     const init = await request({
       id: 1,
       method: "initialize",
-      params: { clientInfo: { name: "codex-usage-mac", version: "1.0.0" }, capabilities: { experimentalApi: true } },
+      params: { clientInfo: { name: "codex-usage-mac", version: "1.1.0" }, capabilities: { experimentalApi: true } },
     });
     throwProtocol(init);
     child.stdin.write(JSON.stringify({ method: "initialized" }) + "\n");
@@ -110,7 +129,7 @@ export async function fetchUsage({ timeoutMs = 15000 } = {}) {
     return parseUsageResponse(response, new Date());
   } catch (err) {
     if (err?.code === "ENOENT") {
-      const e = new Error("Codex CLI was not found in PATH.");
+      const e = new Error("Codex runtime was not found. Install Codex CLI or the ChatGPT desktop app with Codex.");
       e.code = "CODEX_NOT_FOUND";
       throw e;
     }
