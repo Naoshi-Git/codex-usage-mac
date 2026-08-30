@@ -8,8 +8,9 @@ import { runDoctor } from "../src/doctor.mjs";
 import { chooseMood, renderMascot } from "../src/mascot.mjs";
 import { runUpdate } from "../src/update.mjs";
 import { runLiveSession } from "../src/live.mjs";
+import { VERSION } from "../src/meta.mjs";
+import { isSupportedPlatform, platformLabel } from "../src/platform.mjs";
 
-const VERSION = "1.2.0";
 const args = process.argv.slice(2);
 
 async function main() {
@@ -24,8 +25,8 @@ async function main() {
   if (options.help) { printHelp(options.lang); return 0; }
   if (options.version) { console.log(`codex-usage ${VERSION}`); return 0; }
   if (options.selfTest) return selfTest();
-  if (process.platform !== "darwin") {
-    console.error("codex-usage-mac is intentionally macOS-only.");
+  if (!isSupportedPlatform()) {
+    console.error(`codex-usage supports macOS and Windows (current: ${process.platform}).`);
     return 1;
   }
   if (options.command === "doctor") return runDoctor(options);
@@ -141,16 +142,26 @@ function changed(a,b){
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 function printMissingCodex(lang){
-  console.error(lang==="en"?"Codex runtime was not found.":"Codex runtime が見つかりません。");
+  const en=lang==="en";
+  console.error(en?"Codex runtime was not found.":"Codex runtime が見つかりません。");
   console.error("");
-  console.error(lang==="en"
-    ? "If the ChatGPT desktop app with Codex is installed, codex-usage will use its bundled runtime automatically."
-    : "Codex入りChatGPTデスクトップアプリがあれば、内蔵runtimeを自動検出して利用できます。");
-  console.error("");
-  console.error("Otherwise install Codex CLI (official standalone):");
-  console.error("  curl -fsSL https://chatgpt.com/codex/install.sh | sh");
-  console.error("or Homebrew:");
-  console.error("  brew install --cask codex");
+  if (process.platform === "win32") {
+    console.error(en
+      ? "Codex Desktop's per-user runtime is auto-detected when available."
+      : "Codex Desktopのユーザー領域runtimeがあれば自動検出します。");
+    console.error("");
+    console.error("Official standalone Codex CLI:");
+    console.error('  powershell -NoProfile -ExecutionPolicy Bypass -c "irm https://chatgpt.com/codex/install.ps1 | iex"');
+  } else {
+    console.error(en
+      ? "If ChatGPT/Codex Desktop is installed, codex-usage will use its bundled runtime automatically."
+      : "ChatGPT/Codex Desktopがあれば、内蔵runtimeを自動検出して利用できます。");
+    console.error("");
+    console.error("Otherwise install Codex CLI (official standalone):");
+    console.error("  curl -fsSL https://chatgpt.com/codex/install.sh | sh");
+    console.error("or Homebrew:");
+    console.error("  brew install --cask codex");
+  }
   console.error("");
   console.error("Run `codex-usage doctor` for discovery details.");
 }
@@ -159,13 +170,15 @@ function printFetchError(err,lang){
   console.error("");
   console.error(lang==="en"?"Try:":"確認:");
   console.error("  codex-usage doctor");
-  console.error("If auto-discovery fails, set CODEX_CLI=/full/path/to/codex.");
+  console.error(process.platform === "win32"
+    ? "If auto-discovery fails, set $env:CODEX_CLI='C:\\full\\path\\to\\codex.exe'."
+    : "If auto-discovery fails, set CODEX_CLI=/full/path/to/codex.");
 }
 
 function printHelp(lang){
   const en=lang==="en";
-  console.log(`Codex Usage for Mac v${VERSION}`);
-  console.log(en?"Terminal meter for Codex 5-hour and weekly usage limits.":"Codex の5時間・週次使用枠をMacのTerminalで確認するCLIです。");
+  console.log(`Codex Usage v${VERSION} · ${platformLabel()}`);
+  console.log(en?"Terminal meter for Codex 5-hour and weekly usage limits.":"Codex の5時間・週次使用枠をターミナルで確認するCLIです。");
   console.log();
   console.log(en?"Usage:":"使い方:");
   console.log("  codex-usage");
@@ -180,7 +193,7 @@ function printHelp(lang){
   console.log("  status                 default one-shot snapshot");
   console.log("  live                   interactive TUI with / commands and Tab completion");
   console.log("  history                local usage history / heatmap");
-  console.log("  doctor                 diagnose macOS / Node / Codex runtime / account");
+  console.log("  doctor                 diagnose OS / Node / Codex runtime / account");
   console.log("  update                 install latest GitHub Release (or main fallback)");
   console.log("  --watch [sec]          interactive live view (default 60s, min 10s)");
   console.log("  --mascot               show animated quota buddy");
@@ -197,7 +210,7 @@ function printHelp(lang){
   console.log(en
     ? "Inside live mode: press / for commands, Tab to complete, Ctrl+L to redraw, Ctrl+C to exit."
     : "live中は / でコマンド、Tabで補完、Ctrl+Lで再描画、Ctrl+Cで終了できます。");
-  console.log("Codex discovery: CODEX_CLI → PATH → ChatGPT.app bundled runtime → legacy Codex.app runtime.");
+  console.log("Codex discovery: CODEX_CLI → CODEX_CLI_PATH → PATH → desktop runtime.");
 }
 
 function selfTest(){

@@ -1,11 +1,19 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { Card, style, supportsStyle } from "./ui.mjs";
+import { defaultHistoryPath, legacyHistoryPaths } from "./platform.mjs";
 
-const historyPath = path.join(os.homedir(), "Library", "Application Support", "codex-usage", "history.jsonl");
+function resolveHistoryPath() {
+  const current = defaultHistoryPath();
+  if (fs.existsSync(current)) return current;
+  for (const legacy of legacyHistoryPaths()) {
+    if (fs.existsSync(legacy)) return legacy;
+  }
+  return current;
+}
 
 export function recordHistory(snapshot) {
+  const historyPath = resolveHistoryPath();
   const point = {
     recordedAt: snapshot.refreshedAt.toISOString(),
     weeklyUsedPercent: snapshot.weekly?.usedPercent ?? null,
@@ -15,7 +23,7 @@ export function recordHistory(snapshot) {
   };
   try {
     fs.mkdirSync(path.dirname(historyPath), { recursive: true });
-    const last = readLastPoint();
+    const last = readLastPoint(historyPath);
     if (last && Date.now() - new Date(last.recordedAt).getTime() < 120_000 &&
       near(last.weeklyUsedPercent, point.weeklyUsedPercent) &&
       near(last.fiveHourUsedPercent, point.fiveHourUsedPercent) &&
@@ -27,7 +35,7 @@ export function recordHistory(snapshot) {
   }
 }
 
-function readLastPoint() {
+function readLastPoint(historyPath) {
   if (!fs.existsSync(historyPath)) return null;
   try {
     const lines = fs.readFileSync(historyPath, "utf8").trim().split(/\r?\n/);
@@ -37,6 +45,7 @@ function readLastPoint() {
 function near(a,b){return a == null && b == null || typeof a === "number" && typeof b === "number" && Math.abs(a-b)<0.01;}
 
 export function readHistory(days) {
+  const historyPath = resolveHistoryPath();
   if (!fs.existsSync(historyPath)) return [];
   const since = Date.now() - days * 86400_000;
   const points = [];
@@ -162,4 +171,4 @@ function renderHeat(card, heat, days, st){
   }
 }
 
-export function historyFilePath(){ return historyPath; }
+export function historyFilePath(){ return resolveHistoryPath(); }
