@@ -25,11 +25,22 @@ jobs:
 
       - name: Validate shell scripts
         run: |
+          bash -n bootstrap.sh
           bash -n install.sh
           bash -n uninstall.sh
 
       - name: Offline self-test
         run: node ./bin/codex-usage.mjs --self-test
 
-      - name: Help smoke test
-        run: node ./bin/codex-usage.mjs --help >/dev/null
+      - name: CLI smoke tests
+        run: |
+          node ./bin/codex-usage.mjs --help >/dev/null
+          node ./bin/codex-usage.mjs --version | grep -F "1.1.0"
+
+      - name: Install smoke test
+        env:
+          CODEX_USAGE_HOME: ${{ runner.temp }}/codex-usage-app
+          CODEX_USAGE_BIN: ${{ runner.temp }}/codex-usage-bin
+        run: |
+          bash install.sh
+          "$CODEX_USAGE_BIN/codex-usage" --version | grep -F "1.1.0"
