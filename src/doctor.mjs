@@ -1,6 +1,6 @@
 import os from "node:os";
 import process from "node:process";
-import { codexExists, codexVersion, fetchUsage, resolveCodexCommand } from "./codex-client.mjs";
+import { codexExists, codexVersion, fetchUsage, resolveCodex } from "./codex-client.mjs";
 import { historyFilePath } from "./history.mjs";
 
 export async function runDoctor(options) {
@@ -9,8 +9,14 @@ export async function runDoctor(options) {
   rows.push(["macOS", process.platform === "darwin", `${os.release()} · ${process.arch}`]);
   const major = Number(process.versions.node.split(".")[0]);
   rows.push(["Node.js", major >= 22, process.version]);
+
+  const resolved = resolveCodex();
   const exists = codexExists();
-  rows.push(["Codex CLI", exists, exists ? `${resolveCodexCommand()} · ${codexVersion() ?? "version unknown"}` : "not found in PATH"]);
+  rows.push([
+    "Codex runtime",
+    exists,
+    exists ? `${resolved.source} · ${resolved.command} · ${codexVersion() ?? "version unknown"}` : "not found",
+  ]);
 
   let access = false, detail = "";
   if (exists) {
@@ -38,15 +44,26 @@ export async function runDoctor(options) {
   if (process.platform !== "darwin") console.log("  • This repository is macOS-only.");
   if (major < 22) console.log("  • Install/update Node.js 22+: brew install node");
   if (!exists) {
-    console.log("  • Install Codex CLI (official standalone):");
+    console.log(en
+      ? "  • Install the ChatGPT desktop app with Codex, or install Codex CLI."
+      : "  • Codex入りChatGPTデスクトップアプリ、またはCodex CLIを導入してください。");
+    console.log("  • ChatGPT Desktop bundled runtime is detected automatically when present.");
+    console.log("  • Codex CLI (official standalone):");
     console.log("      curl -fsSL https://chatgpt.com/codex/install.sh | sh");
     console.log("    or Homebrew:");
     console.log("      brew install --cask codex");
-    console.log("    or npm:");
-    console.log("      npm install -g @openai/codex");
   } else if (!access) {
-    console.log("  • Run `codex`, choose “Sign in with ChatGPT”, then retry:");
+    if (resolved.source.includes("Desktop")) {
+      console.log(en
+        ? "  • Open the ChatGPT desktop app, enter Codex, and confirm you are signed in."
+        : "  • ChatGPTデスクトップアプリを開き、Codexでログイン済みか確認してください。");
+    } else {
+      console.log("  • Run `codex`, choose “Sign in with ChatGPT”, then retry:");
+    }
     console.log("      codex-usage doctor");
   }
+
+  console.log("\nOverride discovery if needed:");
+  console.log("  CODEX_CLI=/full/path/to/codex codex-usage doctor");
   return 1;
 }
