@@ -219,6 +219,79 @@ private let accentOrange = Color(red: 1.0, green: 0.28, blue: 0.05)
 private let accentGreen = Color(red: 0.05, green: 0.92, blue: 0.53)
 private let softGray = Color.white.opacity(0.30)
 
+/// Loads the official mark bundled with ChatGPT and removes its white tile.
+/// The remaining logo is inverted to white, so only the lines sit on the rail.
+struct OpenAIMark: View {
+    var body: some View {
+        Group {
+            if let image = Self.image {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            } else {
+                // Fallback for Macs where the ChatGPT app is not installed.
+                Canvas { context, size in
+                    let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                    let radius = min(size.width, size.height) * 0.34
+                    let stroke = StrokeStyle(
+                        lineWidth: max(1.6, min(size.width, size.height) * 0.085),
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                    for index in 0..<6 {
+                        let angle = Angle.degrees(Double(index) * 60 - 90).radians
+                        let start = CGPoint(
+                            x: center.x + cos(angle - .pi / 3) * radius,
+                            y: center.y + sin(angle - .pi / 3) * radius
+                        )
+                        let end = CGPoint(
+                            x: center.x + cos(angle + .pi / 3) * radius,
+                            y: center.y + sin(angle + .pi / 3) * radius
+                        )
+                        let controlRadius = radius * 1.18
+                        let control1 = CGPoint(
+                            x: center.x + cos(angle - .pi / 2) * controlRadius,
+                            y: center.y + sin(angle - .pi / 2) * controlRadius
+                        )
+                        let control2 = CGPoint(
+                            x: center.x + cos(angle + .pi / 2) * controlRadius,
+                            y: center.y + sin(angle + .pi / 2) * controlRadius
+                        )
+                        var petal = Path()
+                        petal.move(to: start)
+                        petal.addCurve(to: end, control1: control1, control2: control2)
+                        context.stroke(petal, with: .color(.white), style: stroke)
+                    }
+                }
+            }
+        }
+        .accessibilityLabel("OpenAI")
+    }
+
+    private static let image: NSImage? = {
+        let path = "/Applications/ChatGPT.app/Contents/Resources/icon-chatgpt.png"
+        guard let source = NSImage(contentsOfFile: path),
+              let cgImage = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+
+        let input = CIImage(cgImage: cgImage)
+        guard let removeWhite = CIFilter(name: "CIColorToAlpha"),
+              let invert = CIFilter(name: "CIColorInvert") else { return nil }
+        removeWhite.setValue(input, forKey: kCIInputImageKey)
+        removeWhite.setValue(CIColor(red: 1, green: 1, blue: 1), forKey: "inputColor")
+        guard let transparentLogo = removeWhite.outputImage else { return nil }
+        invert.setValue(transparentLogo, forKey: kCIInputImageKey)
+        guard let output = invert.outputImage else { return nil }
+
+        let rep = NSCIImageRep(ciImage: output)
+        let result = NSImage(size: rep.size)
+        result.addRepresentation(rep)
+        return result
+    }()
+}
+
 struct CircularGauge: View {
     let value: Double
     let color: Color
@@ -233,9 +306,8 @@ struct CircularGauge: View {
                 .stroke(color, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.easeOut(duration: 0.35), value: value)
-            Image(systemName: "sparkles")
-                .font(.system(size: diameter * 0.30, weight: .medium))
-                .foregroundStyle(.white)
+            OpenAIMark()
+                .frame(width: diameter * 0.54, height: diameter * 0.54)
         }
         .frame(width: diameter, height: diameter)
     }
@@ -353,17 +425,14 @@ struct RailItem: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            CircularGauge(value: remaining, color: accentGreen, diameter: 56)
+            CircularGauge(value: remaining, color: accentGreen, diameter: 36)
             Text(store.errorMessage == nil
                  ? (store.snapshot == nil ? "—" : "\(Int(remaining.rounded()))%")
                  : "!")
-                .font(.system(size: 18, weight: .medium, design: .rounded))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(store.errorMessage == nil ? .white : Color.orange)
-            Text("Codex")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.68))
         }
-        .frame(width: 82, height: 118)
+        .frame(width: 56, height: 78)
         .contentShape(Rectangle())
         .onHover { value in
             withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
@@ -392,7 +461,7 @@ struct WidgetView: View {
                             expanded = value
                         }
                     }
-                    .padding(.trailing, 96)
+                    .padding(.trailing, 64)
                     .zIndex(2)
             }
 
@@ -401,9 +470,9 @@ struct WidgetView: View {
                 RailItem(store: store, expanded: $expanded)
                 Spacer()
             }
-            .frame(width: 94, height: 232)
+            .frame(width: 60, height: 140)
             .background(
-                RoundedRectangle(cornerRadius: 45, style: .continuous)
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
                     .fill(Color.black)
             )
             .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
