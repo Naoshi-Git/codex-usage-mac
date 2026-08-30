@@ -14,6 +14,8 @@ export function style(enabled) {
     yellow: (t) => paint("1;33", t),
     magenta: (t) => paint("1;35", t),
     red: (t) => paint("1;31", t),
+    rgb: (r, g, b, t) => paint(`38;2;${r};${g};${b}`, t),
+    rgbPair: (fg, bg, t) => paint(`38;2;${fg[0]};${fg[1]};${fg[2]};48;2;${bg[0]};${bg[1]};${bg[2]}`, t),
     quota: (t, remaining) =>
       remaining <= 10 ? paint("1;31", t)
       : remaining <= 30 ? paint("1;33", t)
