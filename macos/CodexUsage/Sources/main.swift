@@ -420,23 +420,25 @@ struct RailItem: View {
     }
 }
 
-/// Keeps the inner corners fully rounded while extending the screen-edge side.
+/// Keeps the inner corners fully rounded while extending the screen-edge side
+/// beyond the top and bottom of the inner side.
 struct EdgeRailShape: Shape {
     func path(in rect: CGRect) -> Path {
         let leftRadius = min(24, min(rect.width, rect.height) / 2)
         let rightRadius = min(8, min(rect.width, rect.height) / 2)
+        let edgeExtension: CGFloat = 5
         var path = Path()
 
         path.move(to: CGPoint(x: leftRadius, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX - rightRadius, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - rightRadius, y: rect.minY - edgeExtension))
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.minY + rightRadius),
-            control: CGPoint(x: rect.maxX, y: rect.minY)
+            to: CGPoint(x: rect.maxX, y: rect.minY - edgeExtension + rightRadius),
+            control: CGPoint(x: rect.maxX, y: rect.minY - edgeExtension)
         )
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - rightRadius))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY + edgeExtension - rightRadius))
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - rightRadius, y: rect.maxY),
-            control: CGPoint(x: rect.maxX, y: rect.maxY)
+            to: CGPoint(x: rect.maxX - rightRadius, y: rect.maxY + edgeExtension),
+            control: CGPoint(x: rect.maxX, y: rect.maxY + edgeExtension)
         )
         path.addLine(to: CGPoint(x: leftRadius, y: rect.maxY))
         path.addQuadCurve(
