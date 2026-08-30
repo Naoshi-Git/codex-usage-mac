@@ -409,7 +409,7 @@ struct RailItem: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            CircularGauge(value: remaining, color: accentGreen, diameter: 32)
+            CircularGauge(value: remaining, color: accentGreen, diameter: 26)
             Text(store.errorMessage == nil
                  ? (store.snapshot == nil ? "—" : "\(Int(remaining.rounded()))%")
                  : "!")
