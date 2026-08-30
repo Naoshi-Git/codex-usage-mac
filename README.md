@@ -19,7 +19,7 @@ Windows版 `Codex_Usage_CLI` の取得・計算・情報設計をベースに、
 ## 必要環境
 
 - **macOS**（Apple Silicon / Intel）
-- **Node.js 18以上**
+- **Node.js 22以上**（Node.js 24 LTS 推奨）
 - **Codex CLI**
 - Codex CLIで利用可能なChatGPTアカウントまたは設定済みのCodex環境
 
@@ -44,7 +44,9 @@ installerは以下へ配置します。
 
 `~/.local/bin` が `PATH` に入っていない場合は、追加すべき `~/.zshrc` の設定をその場で表示します。
 
-## Node.js がない場合
+インストール時には、コピー後のファイルに対してoffline self-testを実行します。self-testが失敗した場合はインストールを中断します。
+
+## Node.js がない / 古い場合
 
 Homebrewを使う場合:
 
@@ -52,7 +54,13 @@ Homebrewを使う場合:
 brew install node
 ```
 
-Node.js 18以上が必要です。
+既に古いNode.jsがある場合:
+
+```bash
+brew upgrade node
+```
+
+**Node.js 22以上**が必要です。2026年8月時点では Node.js 24 が推奨LTSです。
 
 ## Codex CLI がない場合
 
@@ -85,6 +93,8 @@ codex
 ```bash
 codex-usage doctor
 ```
+
+通常起動時にCodex CLIが見つからない場合も、同じ導入コマンドをその場で表示します。
 
 ## 使い方
 
@@ -168,7 +178,7 @@ codex-usage doctor
 以下を確認します。
 
 1. macOSか
-2. Node.js 18以上か
+2. Node.js 22以上か
 3. Codex CLIが `PATH` から見つかるか
 4. Codex app-serverへ接続しrate limitを取得できるか
 5. 履歴保存先
@@ -194,6 +204,8 @@ node ./bin/codex-usage.mjs --self-test
 node ./bin/codex-usage.mjs --help
 ```
 
+GitHub Actionsでは macOS runner 上で Node.js 22 / 24 のself-testとシェルスクリプト構文チェックを行います。
+
 ## アンインストール
 
 ```bash
@@ -211,3 +223,7 @@ rm -rf "$HOME/Library/Application Support/codex-usage"
 - このリポジトリは **Mac専用** です。
 - Codexの `app-server` / rate-limitレスポンスは将来変更される可能性があります。Codex更新後に動かなくなった場合は、まず `codex-usage doctor` を実行してください。
 - 現行の `rateLimitsByLimitId.codex` と旧 `rateLimits` の両レスポンス形状に対応しています。
+
+## License
+
+MIT
