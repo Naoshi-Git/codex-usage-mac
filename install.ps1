@@ -22,7 +22,8 @@ if (-not $node) {
     exit 1
 }
 
-$nodeVersion = (& node --version).Trim()
+$nodePath = if ($node.Source) { $node.Source } else { $node.Path }
+$nodeVersion = (& $nodePath --version).Trim()
 $nodeMajor = [int](($nodeVersion -replace '^v', '').Split('.')[0])
 if ($LASTEXITCODE -ne 0 -or $nodeMajor -lt 22) {
     throw "Node.js 22+ is required (found $nodeVersion). Update Node.js and retry."
@@ -47,7 +48,7 @@ Copy-Item (Join-Path $sourceRoot "bin") $Destination -Recurse -Force
 Copy-Item (Join-Path $sourceRoot "src") $Destination -Recurse -Force
 Copy-Item (Join-Path $sourceRoot "package.json") $Destination -Force
 
-& node (Join-Path $Destination "bin\codex-usage.mjs") --self-test | Out-Host
+& $nodePath (Join-Path $Destination "bin\codex-usage.mjs") --self-test | Out-Host
 if ($LASTEXITCODE -ne 0) {
     Remove-Item $Destination -Recurse -Force -ErrorAction SilentlyContinue
     throw "Installed files failed the offline self-test."
@@ -60,7 +61,7 @@ if ((Test-Path $legacyHistory) -and -not (Test-Path $newHistory)) {
 
 $entry = Join-Path $Destination "bin\codex-usage.mjs"
 $shimPath = Join-Path $BinDir "codex-usage.cmd"
-$shim = "@echo off`r`nnode `"$entry`" %*`r`n"
+$shim = "@echo off`r`n`"$nodePath`" `"$entry`" %*`r`n"
 [System.IO.File]::WriteAllText($shimPath, $shim, (New-Object System.Text.UTF8Encoding($false)))
 
 function Same-Path([string]$A, [string]$B) {
@@ -90,7 +91,7 @@ if (-not $NoPath) {
 
 if (-not $SkipDoctor) {
     Write-Host ""
-    & node $entry doctor
+    & $nodePath $entry doctor
     $doctorExit = $LASTEXITCODE
     if ($doctorExit -ne 0) {
         Write-Host ""
