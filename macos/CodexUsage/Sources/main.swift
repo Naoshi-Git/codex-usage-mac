@@ -437,7 +437,7 @@ struct WidgetView: View {
             )
             .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
         }
-        .frame(width: 410, height: 430)
+        .frame(width: 410, height: 430, alignment: .trailing)
         .background(Color.clear)
     }
 }
@@ -461,9 +461,11 @@ final class WidgetPanel: NSPanel {
 
 final class EdgeTriggerView: NSView {
     let onHover: (Bool) -> Void
+    let onMove: (NSPoint) -> Void
 
-    init(onHover: @escaping (Bool) -> Void) {
+    init(onHover: @escaping (Bool) -> Void, onMove: @escaping (NSPoint) -> Void) {
         self.onHover = onHover
+        self.onMove = onMove
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
@@ -473,13 +475,14 @@ final class EdgeTriggerView: NSView {
 
     override func updateTrackingAreas() {
         trackingAreas.forEach(removeTrackingArea)
-        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways, .inVisibleRect]
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect]
         addTrackingArea(NSTrackingArea(rect: .zero, options: options, owner: self, userInfo: nil))
         super.updateTrackingAreas()
     }
 
     override func mouseEntered(with event: NSEvent) { onHover(true) }
     override func mouseExited(with event: NSEvent) { onHover(false) }
+    override func mouseMoved(with event: NSEvent) { onMove(NSEvent.mouseLocation) }
 }
 
 final class EdgeTriggerPanel: NSPanel {
@@ -531,25 +534,35 @@ final class PanelController {
         trigger.backgroundColor = .clear
         trigger.hasShadow = false
         trigger.level = .floating
+        trigger.acceptsMouseMovedEvents = true
         trigger.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        trigger.contentView = EdgeTriggerView { [weak self] entered in
-            guard let self else { return }
-            if entered {
-                self.reveal(on: screen)
-            } else {
-                self.panel.orderOut(nil)
+        trigger.contentView = EdgeTriggerView(
+            onHover: { [weak self] entered in
+                guard let self else { return }
+                if entered {
+                    self.reveal(on: screen, cursorY: NSEvent.mouseLocation.y)
+                } else {
+                    self.panel.orderOut(nil)
+                }
+            },
+            onMove: { [weak self] location in
+                self?.reveal(on: screen, cursorY: location.y)
             }
-        }
+        )
         edgeTrigger = trigger
         trigger.orderFrontRegardless()
         panel.orderOut(nil)
     }
 
-    private func reveal(on screen: NSScreen) {
+    private func reveal(on screen: NSScreen, cursorY: CGFloat) {
         let frame = screen.frame
+        let y = min(
+            max(frame.minY, cursorY - panelSize.height / 2),
+            frame.maxY - panelSize.height
+        )
         let origin = NSPoint(
             x: frame.maxX - panelSize.width,
-            y: frame.midY - panelSize.height / 2
+            y: y
         )
         panel.setFrame(NSRect(origin: origin, size: panelSize), display: true)
         panel.orderFrontRegardless()
