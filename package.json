@@ -8,7 +8,7 @@
     "codex-usage": "./bin/codex-usage.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "scripts": {
     "self-test": "node ./bin/codex-usage.mjs --self-test",
