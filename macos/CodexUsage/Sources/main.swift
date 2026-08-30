@@ -288,7 +288,7 @@ struct CircularGauge: View {
             Circle()
                 // Show the actual remaining percentage; it may reach the full circle.
                 .trim(from: 0, to: max(0.02, min(1, value / 100)))
-                .stroke(color, style: StrokeStyle(lineWidth: 4.2, lineCap: .round))
+                .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.easeOut(duration: 0.35), value: value)
             OpenAIMark()
@@ -413,7 +413,7 @@ struct RailItem: View {
             Text(store.errorMessage == nil
                  ? (store.snapshot == nil ? "—" : "\(Int(remaining.rounded()))%")
                  : "!")
-                .font(.system(size: 12, weight: .regular, design: .rounded))
+                .font(.system(size: 10, weight: .light, design: .rounded))
                 .foregroundStyle(store.errorMessage == nil ? .white : Color.orange)
         }
         .frame(width: 44, height: 78)
@@ -461,11 +461,9 @@ final class WidgetPanel: NSPanel {
 
 final class EdgeTriggerView: NSView {
     let onHover: (Bool) -> Void
-    let onMove: (NSPoint) -> Void
 
-    init(onHover: @escaping (Bool) -> Void, onMove: @escaping (NSPoint) -> Void) {
+    init(onHover: @escaping (Bool) -> Void) {
         self.onHover = onHover
-        self.onMove = onMove
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
@@ -475,14 +473,13 @@ final class EdgeTriggerView: NSView {
 
     override func updateTrackingAreas() {
         trackingAreas.forEach(removeTrackingArea)
-        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect]
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways, .inVisibleRect]
         addTrackingArea(NSTrackingArea(rect: .zero, options: options, owner: self, userInfo: nil))
         super.updateTrackingAreas()
     }
 
     override func mouseEntered(with event: NSEvent) { onHover(true) }
     override func mouseExited(with event: NSEvent) { onHover(false) }
-    override func mouseMoved(with event: NSEvent) { onMove(NSEvent.mouseLocation) }
 }
 
 final class EdgeTriggerPanel: NSPanel {
@@ -534,21 +531,15 @@ final class PanelController {
         trigger.backgroundColor = .clear
         trigger.hasShadow = false
         trigger.level = .floating
-        trigger.acceptsMouseMovedEvents = true
         trigger.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        trigger.contentView = EdgeTriggerView(
-            onHover: { [weak self] entered in
-                guard let self else { return }
-                if entered {
-                    self.reveal(on: screen, cursorY: NSEvent.mouseLocation.y)
-                } else {
-                    self.panel.orderOut(nil)
-                }
-            },
-            onMove: { [weak self] location in
-                self?.reveal(on: screen, cursorY: location.y)
+        trigger.contentView = EdgeTriggerView { [weak self] entered in
+            guard let self else { return }
+            if entered {
+                self.reveal(on: screen, cursorY: NSEvent.mouseLocation.y)
+            } else {
+                self.panel.orderOut(nil)
             }
-        )
+        }
         edgeTrigger = trigger
         trigger.orderFrontRegardless()
         panel.orderOut(nil)
