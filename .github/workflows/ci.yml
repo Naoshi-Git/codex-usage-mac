@@ -35,7 +35,8 @@ jobs:
       - name: CLI smoke tests
         run: |
           node ./bin/codex-usage.mjs --help >/dev/null
-          node ./bin/codex-usage.mjs --version | grep -F "1.1.0"
+          VERSION="$(node -p "require('./package.json').version")"
+          node ./bin/codex-usage.mjs --version | grep -F "$VERSION"
 
       - name: Install smoke test
         env:
@@ -43,4 +44,5 @@ jobs:
           CODEX_USAGE_BIN: ${{ runner.temp }}/codex-usage-bin
         run: |
           bash install.sh
-          "$CODEX_USAGE_BIN/codex-usage" --version | grep -F "1.1.0"
+          VERSION="$(node -p "require('./package.json').version")"
+          "$CODEX_USAGE_BIN/codex-usage" --version | grep -F "$VERSION"

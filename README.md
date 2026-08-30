@@ -10,7 +10,10 @@ Windows版 `Codex_Usage_CLI` の取得・計算・情報設計をベースに、
 - 時間経過ベースの使用目安と実使用の差
 - `●` 現在/時間ペース、`▲` 実使用、`░` 夜間帯を同じレールで表示
 - 使わなければいつ使用目安へ戻るかを推定
-- `--watch` によるflicker-freeライブ表示
+- `live` / `--watch` の対話型TUI
+- `/` コマンドパレット + **Tab補完**
+- Terminal resizeを検知して安全に全面再描画
+- `Ctrl+L` / `/redraw` による表示リセット
 - `--mascot` の animated **Quota Buddy**
 - `history` のローカル履歴 / ヒートマップ
 - `--json` の自動化向け出力
@@ -45,8 +48,6 @@ Windows版 `Codex_Usage_CLI` の取得・計算・情報設計をベースに、
 ~/Applications/Codex.app/Contents/Resources/codex       # legacy
 ```
 
-アプリbundleの内部構造は将来変わる可能性があるため、見つからない場合は `CODEX_CLI` で上書きできます。
-
 このツール自身はAPIキーを読みません。検出した `codex app-server --stdio` を起動し、`account/rateLimits/read` から使用量を取得します。
 
 ## Install
@@ -74,10 +75,6 @@ bash install.sh
 
 `~/.local/bin` が `PATH` にない場合、installerが `~/.zshrc` に追加すべき設定を表示します。
 
-インストール時にはコピー後のファイルでoffline self-testを実行します。失敗した場合はインストールを中断します。
-
-最後に `doctor` 相当の診断を表示するため、standalone CLIがなくてもChatGPT Desktop内蔵runtimeが見つかればそのまま使えます。
-
 ## Node.js がない / 古い場合
 
 ```bash
@@ -94,15 +91,15 @@ Node.js 22以上が必要です。
 
 ## Codex runtime が見つからない場合
 
-ChatGPTデスクトップアプリでCodexを利用している場合は、まず:
+まず:
 
 ```bash
 codex-usage doctor
 ```
 
-内蔵runtimeが検出されればstandalone CLIは不要です。
+ChatGPT Desktop内蔵runtimeが検出されればstandalone CLIは不要です。
 
-standalone Codex CLIを使う場合、公式installer:
+standalone Codex CLIを使う場合:
 
 ```bash
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
@@ -114,37 +111,30 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 brew install --cask codex
 ```
 
-CLI導入後は `codex` を起動し、**Sign in with ChatGPT** でログインします。
-
 ## Usage
 
 ```bash
-# 現在値
+# 現在値を1回表示
 codex-usage
 
-# Quota Buddy
-codex-usage --mascot
+# 対話型TUI（推奨）
+codex-usage live --mascot
 
-# Mascot + live view
+# 従来の指定方法も同じinteractive live viewになる
 codex-usage --watch 60 --mascot
 
 # 英語UI
-codex-usage --en
-
-# JSON
-codex-usage --json
+codex-usage live --mascot --en
 
 # 履歴
 codex-usage history
 codex-usage history --30d
 
-# 環境診断
+# JSON
+codex-usage --json
+
+# 診断 / 更新
 codex-usage doctor
-
-# バージョン
-codex-usage --version
-
-# 更新
 codex-usage update
 ```
 
@@ -152,11 +142,12 @@ codex-usage update
 
 | コマンド / オプション | 内容 |
 |---|---|
-| `status` | 現在値。省略時の既定動作 |
+| `status` | 現在値を1回表示。省略時の既定動作 |
+| `live` | 対話型TUI。既定60秒周期 |
 | `history` | ローカル履歴 / ヒートマップ |
 | `doctor` | macOS / Node / Codex runtime / rate-limit接続を診断 |
 | `update` | 最新GitHub Releaseへ更新。Release未作成時はmainへfallback |
-| `--watch [sec]` | 同じ画面を更新。既定60秒、最小10秒 |
+| `--watch [sec]` | interactive live view。既定60秒、最小10秒 |
 | `--mascot` | animated Quota Buddyを表示 |
 | `--days N` | 履歴範囲 1〜30日 |
 | `--30d` | `history --days 30` |
@@ -169,23 +160,88 @@ codex-usage update
 | `--version` / `-v` | バージョン表示 |
 | `--self-test` | 通信なしのself-test |
 
+## Interactive live TUI
+
+```bash
+codex-usage live --mascot
+```
+
+起動後に `/` を押すと、Codex CLI風のコマンドパレットが開きます。
+
+```text
+/watch <sec|off>       確認周期を変更
+/mascot [on|off]       マスコット切替
+/lang <en|ja>          表示言語を変更
+/refresh               今すぐ再取得
+/redraw                表示を完全に再描画
+/width <28-72>         タイムライン幅を変更
+/night <00:00-06:00>   夜間帯を変更
+/help                  コマンド一覧
+/quit                  終了
+```
+
+### Tab completion
+
+コマンド名・一部の固定引数は途中まで入力して `Tab` で補完できます。
+
+```text
+/mas<Tab>       → /mascot 
+/lan<Tab>       → /lang 
+/lang e<Tab>    → /lang en
+/mascot of<Tab> → /mascot off
+/ref<Tab>       → /refresh
+```
+
+候補が複数ある場合は共通prefixまで補完します。
+
+### Redraw / resize
+
+- Terminalサイズ変更を検知すると画面を全面再構築します。
+- 横幅に合わせてレール幅も自動的に縮めます。
+- 68列未満では壊れたカードを無理に描画せず、幅不足メッセージへ切り替えます。
+- `Ctrl+L` または `/redraw` でいつでもhard redrawできます。
+- `/mascot`、`/lang`、`/width`、`/night` の変更後は自動的にhard redrawします。
+
+下部status:
+
+```text
+● RUNNING   next check 59s · / commands · Tab complete · Ctrl+L redraw · Ctrl+C exit
+✦ UPDATED   quota / reset値が実際に変化した直後だけ数秒表示
+Ⅱ PAUSED    /watch off のとき
+```
+
 ## Quota Buddy
 
 ```bash
 codex-usage --mascot
-codex-usage --watch 60 --mascot
+codex-usage live --mascot
 ```
 
-Quota Buddyは週次残量・5時間残量・週次の使用目安との差から状態を選びます。
+Quota Buddyは単純な残量だけではなく、次の3軸から最も厳しい状態を採用します。
 
-- `cruising` / 余裕あり
-- `active` / やや先行
-- `ease up` / 少し抑えめ
-- `cool down` / 休ませどき
+1. **週次の使用目安との差**
+2. **5時間枠の使用目安との差**
+3. **週次 / 5時間枠のうち低い方の残量**
+
+5時間枠は短時間のバースト利用が普通なので、週次より判定閾値を緩くしています。
+
+| 状態 | 週次先行 | 5h先行 | 最低残量 |
+|---|---:|---:|---:|
+| cruising | `<4pt` | `<12pt` | `>50%` |
+| active | `≥4pt` | `≥12pt` | `≤50%` |
+| ease up | `≥10pt` | `≥24pt` | `≤25%` |
+| cool down | `≥18pt` | `≥40pt` | `≤10%` |
+
+マスコット横には実際の判定根拠も表示します。
+
+```text
+pace W 3.2pt room · 5h 18.4pt room · floor 73% left
+basis: pace + remaining quota
+```
 
 対応TerminalではANSI true colorとUnicode half-blockを使います。`--plain` やredirect時はテキスト顔にfallbackします。
 
-watch中のmascotアニメーションはローカル描画だけです。Codexへの問い合わせ頻度は `--watch` の指定値から増えません。
+アニメーションはローカル描画だけです。Codexへの問い合わせ頻度は `--watch` の指定値から増えません。
 
 ## 週次レールの読み方
 
@@ -200,7 +256,7 @@ watch中のmascotアニメーションはローカル描画だけです。Codex�
 
 ## History
 
-成功した通常実行・watch更新時にJSONLサンプルをローカル保存します。
+成功した通常実行・live更新時にJSONLサンプルをローカル保存します。
 
 ```text
 ~/Library/Application Support/codex-usage/history.jsonl
@@ -237,23 +293,17 @@ CODEX_CLI="/Applications/ChatGPT.app/Contents/Resources/codex" codex-usage docto
 
 ## Updating
 
-### v1.1.0以降
-
 ```bash
 codex-usage update
 ```
 
 GitHub Releaseが存在する場合は最新Releaseを優先し、Releaseがない場合のみmainへfallbackします。
 
-### v1.0.0からの初回移行
-
-v1.0.0には `update` コマンドがないため、一度だけbootstrapを再実行してください。
+v1.0.0から初めて更新する場合のみ、一度bootstrapを再実行してください。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Naoshi-Git/codex-usage-mac/main/bootstrap.sh | bash
 ```
-
-以後は `codex-usage update` で更新できます。
 
 ## Development / CI
 
@@ -263,6 +313,7 @@ curl -fsSL https://raw.githubusercontent.com/Naoshi-Git/codex-usage-mac/main/boo
 node ./bin/codex-usage.mjs --self-test
 node ./bin/codex-usage.mjs --help
 node ./bin/codex-usage.mjs --version
+node ./bin/codex-usage.mjs live --mascot --en
 ```
 
 GitHub ActionsではmacOS runnerでNode.js 22 / 24を検証します。
