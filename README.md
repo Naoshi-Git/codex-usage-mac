@@ -2,53 +2,83 @@
 
 macOS Terminal で Codex の **5時間枠 / 週次枠** を一目で確認するためのCLIです。
 
-Windows版 `Codex_Usage_CLI` の取得・計算・情報設計をベースに、Mac専用リポジトリとして作り直しています。Mac版では .NET を必須にせず、**Node.js標準機能だけで動くゼロ依存実装**にしています。
+Windows版 `Codex_Usage_CLI` の取得・計算・情報設計をベースに、Mac専用として作り直しています。外部npm packageは使わず、Node.js標準機能だけで動きます。
 
-## 主な機能
+## Features
 
-- 週次枠: 残り / 使用済み / リセット時刻 / 時間経過ベースの使用目安
-- 5時間枠: 残り / 使用済み / リセット時刻 / 使用目安
-- 週次レール上に `●` 現在、`▲` 実使用、夜間帯を重ねて表示
-- 使用ペースが先行している場合、追加利用しなければいつ目安へ戻るかを表示
-- `--watch` によるライブ更新
-- `--json` による自動化向け出力
-- ローカル履歴と時間帯別ヒートマップ
-- `doctor` による macOS / Node.js / Codex CLI / アカウント接続の診断
+- 週次 / 5時間枠の残量・実使用・リセット時刻
+- 時間経過ベースの使用目安と実使用の差
+- `●` 現在/時間ペース、`▲` 実使用、`░` 夜間帯を同じレールで表示
+- 使わなければいつ使用目安へ戻るかを推定
+- `--watch` によるflicker-freeライブ表示
+- `--mascot` の animated **Quota Buddy**
+- `history` のローカル履歴 / ヒートマップ
+- `--json` の自動化向け出力
+- `doctor` の環境・Codex runtime・アカウント診断
+- `update` の自己更新
 - 日本語 / 英語UI
 
-## 必要環境
+## Requirements
 
 - **macOS**（Apple Silicon / Intel）
 - **Node.js 22以上**（Node.js 24 LTS 推奨）
-- **Codex CLI**
-- Codex CLIで利用可能なChatGPTアカウントまたは設定済みのCodex環境
+- Codexを利用できるChatGPTアカウント
+- 次のいずれかのCodex runtime
+  - ChatGPTデスクトップアプリ内のCodex
+  - standalone Codex CLI
 
-このツール自身はAPIキーを読みません。ローカルの `codex app-server --stdio` を起動し、`account/rateLimits/read` から使用量を取得します。
+**standalone Codex CLIは必須ではありません。**
 
-## 最短セットアップ
+`codex-usage` は次の順でCodex runtimeを探します。
+
+1. `CODEX_CLI` 環境変数
+2. `PATH` 上の `codex`
+3. ChatGPTデスクトップアプリ内蔵runtime
+4. 旧Codex Desktopアプリ内蔵runtime
+
+既知のmacOS bundle pathも自動検出します。
+
+```text
+/Applications/ChatGPT.app/Contents/Resources/codex
+~/Applications/ChatGPT.app/Contents/Resources/codex
+/Applications/Codex.app/Contents/Resources/codex        # legacy
+~/Applications/Codex.app/Contents/Resources/codex       # legacy
+```
+
+アプリbundleの内部構造は将来変わる可能性があるため、見つからない場合は `CODEX_CLI` で上書きできます。
+
+このツール自身はAPIキーを読みません。検出した `codex app-server --stdio` を起動し、`account/rateLimits/read` から使用量を取得します。
+
+## Install
+
+### One command
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Naoshi-Git/codex-usage-mac/main/bootstrap.sh | bash
+```
+
+### Git clone
 
 ```bash
 git clone https://github.com/Naoshi-Git/codex-usage-mac.git
 cd codex-usage-mac
 bash install.sh
-codex-usage doctor
-codex-usage
 ```
 
-installerは以下へ配置します。
+配置先:
 
 ```text
 ~/.local/share/codex-usage-mac
 ~/.local/bin/codex-usage
 ```
 
-`~/.local/bin` が `PATH` に入っていない場合は、追加すべき `~/.zshrc` の設定をその場で表示します。
+`~/.local/bin` が `PATH` にない場合、installerが `~/.zshrc` に追加すべき設定を表示します。
 
-インストール時には、コピー後のファイルに対してoffline self-testを実行します。self-testが失敗した場合はインストールを中断します。
+インストール時にはコピー後のファイルでoffline self-testを実行します。失敗した場合はインストールを中断します。
+
+最後に `doctor` 相当の診断を表示するため、standalone CLIがなくてもChatGPT Desktop内蔵runtimeが見つかればそのまま使えます。
 
 ## Node.js がない / 古い場合
-
-Homebrewを使う場合:
 
 ```bash
 brew install node
@@ -60,169 +90,201 @@ brew install node
 brew upgrade node
 ```
 
-**Node.js 22以上**が必要です。2026年8月時点では Node.js 24 が推奨LTSです。
+Node.js 22以上が必要です。
 
-## Codex CLI がない場合
+## Codex runtime が見つからない場合
 
-Codex公式のMac/Linux向けstandalone installer:
+ChatGPTデスクトップアプリでCodexを利用している場合は、まず:
+
+```bash
+codex-usage doctor
+```
+
+内蔵runtimeが検出されればstandalone CLIは不要です。
+
+standalone Codex CLIを使う場合、公式installer:
 
 ```bash
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
 ```
 
-Homebrewでも導入できます。
+または:
 
 ```bash
 brew install --cask codex
 ```
 
-npmの場合:
+CLI導入後は `codex` を起動し、**Sign in with ChatGPT** でログインします。
+
+## Usage
 
 ```bash
-npm install -g @openai/codex
-```
-
-導入後、一度Codexを起動します。
-
-```bash
-codex
-```
-
-**Sign in with ChatGPT** を選んでログインした後、診断します。
-
-```bash
-codex-usage doctor
-```
-
-通常起動時にCodex CLIが見つからない場合も、同じ導入コマンドをその場で表示します。
-
-## 使い方
-
-```bash
-# 1回だけ表示
+# 現在値
 codex-usage
+
+# Quota Buddy
+codex-usage --mascot
+
+# Mascot + live view
+codex-usage --watch 60 --mascot
 
 # 英語UI
 codex-usage --en
 
-# 60秒ごとに更新
-codex-usage --watch 60
-
 # JSON
 codex-usage --json
 
-# ANSI装飾なし
-codex-usage --plain
-
 # 履歴
 codex-usage history
-
-# 30日履歴
 codex-usage history --30d
 
 # 環境診断
 codex-usage doctor
+
+# バージョン
+codex-usage --version
+
+# 更新
+codex-usage update
 ```
 
-### オプション
+### Commands / options
 
-| オプション | 内容 |
+| コマンド / オプション | 内容 |
 |---|---|
-| `status` | 現在値を表示。省略時の既定動作 |
+| `status` | 現在値。省略時の既定動作 |
 | `history` | ローカル履歴 / ヒートマップ |
-| `doctor` | macOS / Node / Codex CLI / rate-limit接続を診断 |
+| `doctor` | macOS / Node / Codex runtime / rate-limit接続を診断 |
+| `update` | 最新GitHub Releaseへ更新。Release未作成時はmainへfallback |
 | `--watch [sec]` | 同じ画面を更新。既定60秒、最小10秒 |
+| `--mascot` | animated Quota Buddyを表示 |
 | `--days N` | 履歴範囲 1〜30日 |
-| `--30d` | `history --days 30` の短縮形 |
+| `--30d` | `history --days 30` |
 | `--night HH:MM-HH:MM` | 週次レールの夜間帯。既定 `00:00-06:00` |
 | `--width N` | レール幅 28〜72。既定56 |
 | `--json` | 構造化JSON |
 | `--plain` / `--no-color` | ANSI装飾を無効化 |
 | `--en` / `--ja` | 英語 / 日本語 |
-| `--lang en\|ja` | 言語を明示指定 |
+| `--lang en\|ja` | 言語指定 |
+| `--version` / `-v` | バージョン表示 |
 | `--self-test` | 通信なしのself-test |
+
+## Quota Buddy
+
+```bash
+codex-usage --mascot
+codex-usage --watch 60 --mascot
+```
+
+Quota Buddyは週次残量・5時間残量・週次の使用目安との差から状態を選びます。
+
+- `cruising` / 余裕あり
+- `active` / やや先行
+- `ease up` / 少し抑えめ
+- `cool down` / 休ませどき
+
+対応TerminalではANSI true colorとUnicode half-blockを使います。`--plain` やredirect時はテキスト顔にfallbackします。
+
+watch中のmascotアニメーションはローカル描画だけです。Codexへの問い合わせ頻度は `--watch` の指定値から増えません。
 
 ## 週次レールの読み方
 
 ```text
 ● 7日間のうち現在どこまで時間が経過したか
-▲ 週次quotaを何%使ったかを同じ0–100%軸へ配置
+▲ 週次quotaを何%使ったか
 ━ すでに消費した領域
 ░ 設定した夜間帯
 ```
 
-時間の進み方とquota消費の進み方を同じ軸に置くため、**今の使い方が均等ペースより速いか遅いか**を算数なしで判断できます。
+時間の進み方とquota消費を同じ0–100%軸へ置き、均等ペースより速いか遅いかを視覚化します。
 
-使用が時間経過より先行している場合は、追加利用しなければ時間側が追いつく推定時刻も表示します。
+## History
 
-## 履歴
-
-成功した通常実行・watch更新時に小さなJSONLサンプルをローカルへ保存します。
+成功した通常実行・watch更新時にJSONLサンプルをローカル保存します。
 
 ```text
 ~/Library/Application Support/codex-usage/history.jsonl
 ```
 
-履歴はこのツールから外部へ送信しません。
+履歴は外部へ送信しません。3時間を超える観測空白は補間せず、週次リセットをまたいだ差分も消費量へ加算しません。
 
-ヒートマップは、3時間を超える観測空白を勝手に補間しません。また週次リセットをまたいだ差分を消費量として加算しません。
-
-## `doctor` について
-
-うまく動かない場合は最初に実行してください。
+## Doctor
 
 ```bash
 codex-usage doctor
 ```
 
-以下を確認します。
+確認項目:
 
-1. macOSか
-2. Node.js 22以上か
-3. Codex CLIが `PATH` から見つかるか
-4. Codex app-serverへ接続しrate limitを取得できるか
-5. 履歴保存先
+1. macOS
+2. Node.js 22+
+3. Codex runtimeの検出元と実ファイルpath
+4. `app-server` / rate-limit endpoint
+5. ChatGPTアカウント接続
+6. 履歴保存先
 
-Codex CLIがなければ導入コマンドを表示します。Codexは見つかるがアカウント接続に失敗する場合は、`codex` を起動してChatGPTログインを行うよう案内します。
+ChatGPT Desktop内蔵runtimeを利用している場合、`Codex runtime` 行に `ChatGPT Desktop` と表示されます。
 
-## Codexが入っているのに見つからない場合
+## `CODEX_CLI` override
 
-Codex実行ファイルのフルパスを指定できます。
+自動検出で見つからない場合:
 
 ```bash
-CODEX_CLI=/full/path/to/codex codex-usage
+CODEX_CLI="/Applications/ChatGPT.app/Contents/Resources/codex" codex-usage doctor
 ```
 
-必要なら `~/.zshrc` に設定してください。
+恒久設定する場合は `~/.zshrc` などに設定できます。
 
-## 開発 / 確認
+## Updating
 
-外部npm packageは使っていないため `npm install` は不要です。
+### v1.1.0以降
+
+```bash
+codex-usage update
+```
+
+GitHub Releaseが存在する場合は最新Releaseを優先し、Releaseがない場合のみmainへfallbackします。
+
+### v1.0.0からの初回移行
+
+v1.0.0には `update` コマンドがないため、一度だけbootstrapを再実行してください。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Naoshi-Git/codex-usage-mac/main/bootstrap.sh | bash
+```
+
+以後は `codex-usage update` で更新できます。
+
+## Development / CI
+
+外部npm packageはないため `npm install` は不要です。
 
 ```bash
 node ./bin/codex-usage.mjs --self-test
 node ./bin/codex-usage.mjs --help
+node ./bin/codex-usage.mjs --version
 ```
 
-GitHub Actionsでは macOS runner 上で Node.js 22 / 24 のself-testとシェルスクリプト構文チェックを行います。
+GitHub ActionsではmacOS runnerでNode.js 22 / 24を検証します。
 
-## アンインストール
+## Uninstall
 
 ```bash
 bash uninstall.sh
 ```
 
-コマンド本体は削除しますが、履歴は意図的に残します。履歴も消す場合:
+履歴は意図的に残します。履歴も削除する場合:
 
 ```bash
 rm -rf "$HOME/Library/Application Support/codex-usage"
 ```
 
-## 注意
+## Notes
 
-- このリポジトリは **Mac専用** です。
-- Codexの `app-server` / rate-limitレスポンスは将来変更される可能性があります。Codex更新後に動かなくなった場合は、まず `codex-usage doctor` を実行してください。
-- 現行の `rateLimitsByLimitId.codex` と旧 `rateLimits` の両レスポンス形状に対応しています。
+- **Mac専用**です。
+- ChatGPT/Codex Desktopのbundle内部pathは公開APIではないため、将来変わる可能性があります。`doctor` と `CODEX_CLI` overrideをfallbackとして用意しています。
+- Codexの `app-server` / rate-limitレスポンスも将来変更される可能性があります。
+- 現行 `rateLimitsByLimitId.codex` と旧 `rateLimits` の両形状に対応しています。
 
 ## License
 
