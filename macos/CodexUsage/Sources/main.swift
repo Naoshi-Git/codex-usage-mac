@@ -420,6 +420,39 @@ struct RailItem: View {
     }
 }
 
+/// Keeps the inner corners fully rounded while extending the screen-edge side.
+struct EdgeRailShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let leftRadius = min(24, min(rect.width, rect.height) / 2)
+        let rightRadius = min(8, min(rect.width, rect.height) / 2)
+        var path = Path()
+
+        path.move(to: CGPoint(x: leftRadius, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - rightRadius, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + rightRadius),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - rightRadius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - rightRadius, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: leftRadius, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX, y: rect.maxY - leftRadius),
+            control: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + leftRadius))
+        path.addQuadCurve(
+            to: CGPoint(x: leftRadius, y: rect.minY),
+            control: CGPoint(x: rect.minX, y: rect.minY)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
 struct WidgetView: View {
     @ObservedObject var store: UsageStore
 
@@ -432,7 +465,7 @@ struct WidgetView: View {
             }
             .frame(width: 48, height: 140)
             .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                EdgeRailShape()
                     .fill(Color.black)
             )
             .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
@@ -516,9 +549,9 @@ final class PanelController {
         guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let screenFrame = screen.frame
         let triggerFrame = NSRect(
-            x: screenFrame.maxX - 4,
+            x: screenFrame.maxX - 1,
             y: screenFrame.minY,
-            width: 4,
+            width: 1,
             height: screenFrame.height
         )
         let trigger = EdgeTriggerPanel(
