@@ -427,7 +427,9 @@ struct EdgeRailShape: Shape {
         let leftRadius = min(24, min(rect.width, rect.height) / 2)
         let edgeExtension: CGFloat = 20
         let curveSpan = rect.maxX - (rect.minX + leftRadius)
-        let curveReach = curveSpan * 0.5
+        // Keep a short, shallow lead-in/out so the A/B corner arcs do not form
+        // a visible bump before flowing toward the square C/D edge.
+        let curveReach = curveSpan * 0.30
         var path = Path()
 
         path.move(to: CGPoint(x: rect.minX + leftRadius, y: rect.minY))
