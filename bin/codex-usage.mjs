@@ -7,8 +7,9 @@ import { beginLiveFrame, redraw, style, supportsStyle } from "../src/ui.mjs";
 import { runDoctor } from "../src/doctor.mjs";
 import { chooseMood, renderMascot } from "../src/mascot.mjs";
 import { runUpdate } from "../src/update.mjs";
+import { runLiveSession } from "../src/live.mjs";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const args = process.argv.slice(2);
 
 async function main() {
@@ -40,7 +41,7 @@ async function main() {
   }
 
   try {
-    if (options.watch) return await watch(options);
+    if (options.watch || options.command === "live") return await runLiveSession(options);
     const snapshot = await fetchUsage();
     recordHistory(snapshot);
     if (options.json) console.log(JSON.stringify(toJson(snapshot, options), null, 2));
@@ -63,7 +64,7 @@ function parseArgs(argv) {
   let commandSet = false;
   for (let i=0;i<argv.length;i++) {
     const arg=argv[i];
-    if ((arg==="status"||arg==="history"||arg==="doctor"||arg==="update") && !commandSet) { options.command=arg; commandSet=true; continue; }
+    if ((arg==="status"||arg==="live"||arg==="history"||arg==="doctor"||arg==="update") && !commandSet) { options.command=arg; commandSet=true; continue; }
     if (arg==="--json") {options.json=true;continue;}
     if (arg==="--plain"||arg==="--no-color") {options.plain=true;continue;}
     if (arg==="--self-test") {options.selfTest=true;continue;}
@@ -95,11 +96,13 @@ function parseArgs(argv) {
   if(options.command==="history" && options.json) throw new Error("history and --json cannot be combined.");
   if(options.command==="history" && options.mascot) throw new Error("history and --mascot cannot be combined.");
   if(options.command==="update" && (options.watch || options.json || options.mascot)) throw new Error("update cannot be combined with display options.");
+  if(options.command==="live" && options.json) throw new Error("live and --json cannot be combined.");
   if(options.json && options.watch) throw new Error("--json and --watch cannot be combined.");
   if(options.json && options.mascot) throw new Error("--json and --mascot cannot be combined.");
   return options;
 }
 
+// Kept as a compatibility fallback for callers importing older internals.
 async function watch(options) {
   let snapshot=await fetchUsage();
   recordHistory(snapshot);
@@ -166,6 +169,7 @@ function printHelp(lang){
   console.log();
   console.log(en?"Usage:":"使い方:");
   console.log("  codex-usage");
+  console.log("  codex-usage live --mascot");
   console.log("  codex-usage --watch 60 --mascot");
   console.log("  codex-usage history --30d");
   console.log("  codex-usage doctor");
@@ -173,11 +177,12 @@ function printHelp(lang){
   console.log("  codex-usage --json");
   console.log();
   console.log(en?"Commands / options:":"コマンド / オプション:");
-  console.log("  status                 default live snapshot");
+  console.log("  status                 default one-shot snapshot");
+  console.log("  live                   interactive TUI with / commands and Tab completion");
   console.log("  history                local usage history / heatmap");
   console.log("  doctor                 diagnose macOS / Node / Codex runtime / account");
   console.log("  update                 install latest GitHub Release (or main fallback)");
-  console.log("  --watch [sec]          refresh in place (default 60s, min 10s)");
+  console.log("  --watch [sec]          interactive live view (default 60s, min 10s)");
   console.log("  --mascot               show animated quota buddy");
   console.log("  --days N / --30d       history range (1–30 days)");
   console.log("  --night 00:00-06:00    night band on weekly rail");
@@ -189,6 +194,9 @@ function printHelp(lang){
   console.log("  --version / -v         show version");
   console.log("  --self-test            offline tests");
   console.log();
+  console.log(en
+    ? "Inside live mode: press / for commands, Tab to complete, Ctrl+L to redraw, Ctrl+C to exit."
+    : "live中は / でコマンド、Tabで補完、Ctrl+Lで再描画、Ctrl+Cで終了できます。");
   console.log("Codex discovery: CODEX_CLI → PATH → ChatGPT.app bundled runtime → legacy Codex.app runtime.");
 }
 
