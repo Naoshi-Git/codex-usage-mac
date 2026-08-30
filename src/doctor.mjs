@@ -8,7 +8,7 @@ export async function runDoctor(options) {
   const rows = [];
   rows.push(["macOS", process.platform === "darwin", `${os.release()} · ${process.arch}`]);
   const major = Number(process.versions.node.split(".")[0]);
-  rows.push(["Node.js", major >= 18, process.version]);
+  rows.push(["Node.js", major >= 22, process.version]);
   const exists = codexExists();
   rows.push(["Codex CLI", exists, exists ? `${resolveCodexCommand()} · ${codexVersion() ?? "version unknown"}` : "not found in PATH"]);
 
@@ -36,7 +36,7 @@ export async function runDoctor(options) {
 
   console.log(en ? "\nRecommended fixes:" : "\n推奨する修正:");
   if (process.platform !== "darwin") console.log("  • This repository is macOS-only.");
-  if (major < 18) console.log("  • Install/update Node.js 18+: brew install node");
+  if (major < 22) console.log("  • Install/update Node.js 22+: brew install node");
   if (!exists) {
     console.log("  • Install Codex CLI (official standalone):");
     console.log("      curl -fsSL https://chatgpt.com/codex/install.sh | sh");
