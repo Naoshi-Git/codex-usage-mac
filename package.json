@@ -1,0 +1,17 @@
+{
+  "name": "codex-usage-mac",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mac-native terminal meter for Codex 5-hour and weekly usage limits.",
+  "type": "module",
+  "bin": {
+    "codex-usage": "./bin/codex-usage.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "self-test": "node ./bin/codex-usage.mjs --self-test",
+    "doctor": "node ./bin/codex-usage.mjs doctor"
+  }
+}
