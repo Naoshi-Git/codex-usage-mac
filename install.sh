@@ -2,14 +2,15 @@
 set -euo pipefail
 
 APP_NAME="codex-usage"
-INSTALL_ROOT="${CODEX_USAGE_HOME:-$HOME/.local/share/codex-usage-mac}"
+INSTALL_ROOT="${CODEX_USAGE_HOME:-$HOME/.local/share/codex-usage}"
+LEGACY_ROOT="$HOME/.local/share/codex-usage-mac"
 BIN_DIR="${CODEX_USAGE_BIN:-$HOME/.local/bin}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 say() { printf "%s\n" "$*"; }
 fail() { printf "Error: %s\n" "$*" >&2; exit 1; }
 
-[[ "$(uname -s)" == "Darwin" ]] || fail "This installer is macOS-only."
+[[ "$(uname -s)" == "Darwin" ]] || fail "This installer is for macOS. Use install.ps1 on Windows."
 [[ -n "$INSTALL_ROOT" && "$INSTALL_ROOT" != "/" ]] || fail "Unsafe install path."
 [[ -n "$BIN_DIR" && "$BIN_DIR" != "/" ]] || fail "Unsafe bin path."
 
@@ -29,7 +30,7 @@ fi
 NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
 [[ "$NODE_MAJOR" -ge 22 ]] || fail "Node.js 22+ is required (found $(node --version)). Run: brew upgrade node"
 
-say "Installing Codex Usage for Mac"
+say "Installing Codex Usage"
 say "  source:  $SCRIPT_DIR"
 say "  app:     $INSTALL_ROOT"
 say "  command: $BIN_DIR/$APP_NAME"
@@ -45,6 +46,11 @@ if ! node "$INSTALL_ROOT/bin/codex-usage.mjs" --self-test >/dev/null; then
 fi
 
 ln -sfn "$INSTALL_ROOT/bin/codex-usage.mjs" "$BIN_DIR/$APP_NAME"
+
+if [[ "$LEGACY_ROOT" != "$INSTALL_ROOT" && -d "$LEGACY_ROOT" ]]; then
+  rm -rf "$LEGACY_ROOT"
+  say "Migrated from the previous Mac install location."
+fi
 
 PATH_NOTE=0
 case ":$PATH:" in
@@ -74,8 +80,8 @@ cat <<'EOF'
 
 Next:
   codex-usage
-  codex-usage --mascot
-  codex-usage --watch 60 --mascot
+  codex-usage live --mascot
+  codex-usage history
 
 Future updates:
   codex-usage update
