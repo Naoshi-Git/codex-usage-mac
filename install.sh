@@ -15,19 +15,19 @@ fail() { printf "Error: %s\n" "$*" >&2; exit 1; }
 
 if ! command -v node >/dev/null 2>&1; then
   cat >&2 <<'EOF'
-Node.js 18+ is required and was not found.
+Node.js 22+ is required and was not found.
 
 Recommended:
   brew install node
 
-If Homebrew is not installed, install Node.js from https://nodejs.org/ and rerun:
+If Homebrew is not installed, install a current LTS release from https://nodejs.org/ and rerun:
   bash install.sh
 EOF
   exit 1
 fi
 
 NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
-[[ "$NODE_MAJOR" -ge 18 ]] || fail "Node.js 18+ is required (found $(node --version)). Run: brew upgrade node"
+[[ "$NODE_MAJOR" -ge 22 ]] || fail "Node.js 22+ is required (found $(node --version)). Run: brew upgrade node"
 
 say "Installing Codex Usage for Mac"
 say "  source:  $SCRIPT_DIR"
