@@ -219,8 +219,7 @@ private let accentOrange = Color(red: 1.0, green: 0.28, blue: 0.05)
 private let accentGreen = Color(red: 0.05, green: 0.92, blue: 0.53)
 private let softGray = Color.white.opacity(0.30)
 
-/// Loads the official mark bundled with ChatGPT and removes its white tile.
-/// The remaining logo is inverted to white, so only the lines sit on the rail.
+/// The official OpenAI Blossom mark, rendered white on a transparent background.
 struct OpenAIMark: View {
     var body: some View {
         Group {
@@ -270,25 +269,10 @@ struct OpenAIMark: View {
     }
 
     private static let image: NSImage? = {
-        let path = "/Applications/ChatGPT.app/Contents/Resources/icon-chatgpt.png"
-        guard let source = NSImage(contentsOfFile: path),
-              let cgImage = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+        guard let path = Bundle.main.path(forResource: "openai-mark", ofType: "svg") else {
             return nil
         }
-
-        let input = CIImage(cgImage: cgImage)
-        guard let removeWhite = CIFilter(name: "CIColorToAlpha"),
-              let invert = CIFilter(name: "CIColorInvert") else { return nil }
-        removeWhite.setValue(input, forKey: kCIInputImageKey)
-        removeWhite.setValue(CIColor(red: 1, green: 1, blue: 1), forKey: "inputColor")
-        guard let transparentLogo = removeWhite.outputImage else { return nil }
-        invert.setValue(transparentLogo, forKey: kCIInputImageKey)
-        guard let output = invert.outputImage else { return nil }
-
-        let rep = NSCIImageRep(ciImage: output)
-        let result = NSImage(size: rep.size)
-        result.addRepresentation(rep)
-        return result
+        return NSImage(contentsOfFile: path)
     }()
 }
 
@@ -425,11 +409,11 @@ struct RailItem: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            CircularGauge(value: remaining, color: accentGreen, diameter: 36)
+            CircularGauge(value: remaining, color: accentGreen, diameter: 32)
             Text(store.errorMessage == nil
                  ? (store.snapshot == nil ? "—" : "\(Int(remaining.rounded()))%")
                  : "!")
-                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .font(.system(size: 12, weight: .regular, design: .rounded))
                 .foregroundStyle(store.errorMessage == nil ? .white : Color.orange)
         }
         .frame(width: 44, height: 78)
@@ -475,12 +459,39 @@ final class WidgetPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+final class EdgeTriggerView: NSView {
+    let onHover: (Bool) -> Void
+
+    init(onHover: @escaping (Bool) -> Void) {
+        self.onHover = onHover
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func updateTrackingAreas() {
+        trackingAreas.forEach(removeTrackingArea)
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways, .inVisibleRect]
+        addTrackingArea(NSTrackingArea(rect: .zero, options: options, owner: self, userInfo: nil))
+        super.updateTrackingAreas()
+    }
+
+    override func mouseEntered(with event: NSEvent) { onHover(true) }
+    override func mouseExited(with event: NSEvent) { onHover(false) }
+}
+
+final class EdgeTriggerPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
 @MainActor
 final class PanelController {
     private let panel: WidgetPanel
     private let panelSize = NSSize(width: 410, height: 430)
-    private var mouseMonitor: Any?
-    private var localMouseMonitor: Any?
+    private var edgeTrigger: EdgeTriggerPanel?
 
     init(store: UsageStore) {
         panel = WidgetPanel(
@@ -502,37 +513,36 @@ final class PanelController {
     }
 
     func startEdgeReveal() {
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
-            let location = NSEvent.mouseLocation
-            Task { @MainActor [weak self] in
-                self?.updateVisibility(for: location)
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
+        let screenFrame = screen.frame
+        let triggerFrame = NSRect(
+            x: screenFrame.maxX - 4,
+            y: screenFrame.minY,
+            width: 4,
+            height: screenFrame.height
+        )
+        let trigger = EdgeTriggerPanel(
+            contentRect: triggerFrame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        trigger.isOpaque = false
+        trigger.backgroundColor = .clear
+        trigger.hasShadow = false
+        trigger.level = .floating
+        trigger.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        trigger.contentView = EdgeTriggerView { [weak self] entered in
+            guard let self else { return }
+            if entered {
+                self.reveal(on: screen)
+            } else {
+                self.panel.orderOut(nil)
             }
         }
-        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { [weak self] event in
-            let location = NSEvent.mouseLocation
-            Task { @MainActor [weak self] in
-                self?.updateVisibility(for: location)
-            }
-            return event
-        }
-        updateVisibility(for: NSEvent.mouseLocation)
-    }
-
-    deinit {
-        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
-        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
-    }
-
-    private func updateVisibility(for location: NSPoint) {
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(location) })
-                ?? NSScreen.main else { return }
-        let edge = screen.frame.maxX
-        let isAtRightEdge = location.x >= edge - 3
-        if isAtRightEdge {
-            reveal(on: screen)
-        } else {
-            panel.orderOut(nil)
-        }
+        edgeTrigger = trigger
+        trigger.orderFrontRegardless()
+        panel.orderOut(nil)
     }
 
     private func reveal(on screen: NSScreen) {

@@ -23,6 +23,7 @@ swiftc -O -parse-as-library \
   -o "$APP/Contents/MacOS/CodexUsage"
 
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
+cp "$ROOT/Resources/openai-mark.svg" "$APP/Contents/Resources/openai-mark.svg"
 codesign --force --deep --sign - "$APP" >/dev/null
 
 echo "Built: $APP"
