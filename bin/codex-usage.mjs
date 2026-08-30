@@ -5,7 +5,10 @@ import { parseNight, renderStatus, toJson, pacePercentAt, renderUsageTrack } fro
 import { recordHistory, readHistory, renderHistory } from "../src/history.mjs";
 import { beginLiveFrame, redraw, style, supportsStyle } from "../src/ui.mjs";
 import { runDoctor } from "../src/doctor.mjs";
+import { chooseMood, renderMascot } from "../src/mascot.mjs";
+import { runUpdate } from "../src/update.mjs";
 
+const VERSION = "1.1.0";
 const args = process.argv.slice(2);
 
 async function main() {
@@ -18,12 +21,14 @@ async function main() {
   }
 
   if (options.help) { printHelp(options.lang); return 0; }
+  if (options.version) { console.log(`codex-usage ${VERSION}`); return 0; }
   if (options.selfTest) return selfTest();
   if (process.platform !== "darwin") {
     console.error("codex-usage-mac is intentionally macOS-only.");
     return 1;
   }
   if (options.command === "doctor") return runDoctor(options);
+  if (options.command === "update") return runUpdate(options);
   if (options.command === "history") {
     renderHistory(readHistory(options.days), options.days, options);
     return 0;
@@ -39,7 +44,10 @@ async function main() {
     const snapshot = await fetchUsage();
     recordHistory(snapshot);
     if (options.json) console.log(JSON.stringify(toJson(snapshot, options), null, 2));
-    else renderStatus(snapshot, options);
+    else {
+      if (options.mascot) renderMascot(snapshot, options, 0);
+      renderStatus(snapshot, options);
+    }
     return 0;
   } catch (err) {
     printFetchError(err, options.lang);
@@ -49,16 +57,18 @@ async function main() {
 
 function parseArgs(argv) {
   const options = {
-    command: "status", json: false, plain: false, selfTest: false, help: false,
+    command: "status", json: false, plain: false, selfTest: false, help: false, version: false, mascot: false,
     watch: null, width: 56, night: parseNight(), days: 7, lang: "ja",
   };
   let commandSet = false;
   for (let i=0;i<argv.length;i++) {
     const arg=argv[i];
-    if ((arg==="status"||arg==="history"||arg==="doctor") && !commandSet) { options.command=arg; commandSet=true; continue; }
+    if ((arg==="status"||arg==="history"||arg==="doctor"||arg==="update") && !commandSet) { options.command=arg; commandSet=true; continue; }
     if (arg==="--json") {options.json=true;continue;}
     if (arg==="--plain"||arg==="--no-color") {options.plain=true;continue;}
     if (arg==="--self-test") {options.selfTest=true;continue;}
+    if (arg==="--version"||arg==="-v") {options.version=true;continue;}
+    if (arg==="--mascot") {options.mascot=true;continue;}
     if (arg==="--help"||arg==="-h") {options.help=true;continue;}
     if (arg==="--en") {options.lang="en";continue;}
     if (arg==="--ja") {options.lang="ja";continue;}
@@ -83,7 +93,10 @@ function parseArgs(argv) {
   }
   if(options.command==="history" && options.watch) throw new Error("history and --watch cannot be combined.");
   if(options.command==="history" && options.json) throw new Error("history and --json cannot be combined.");
+  if(options.command==="history" && options.mascot) throw new Error("history and --mascot cannot be combined.");
+  if(options.command==="update" && (options.watch || options.json || options.mascot)) throw new Error("update cannot be combined with display options.");
   if(options.json && options.watch) throw new Error("--json and --watch cannot be combined.");
+  if(options.json && options.mascot) throw new Error("--json and --mascot cannot be combined.");
   return options;
 }
 
@@ -92,6 +105,7 @@ async function watch(options) {
   recordHistory(snapshot);
   let next=Date.now()+options.watch*1000;
   let updatedUntil=0;
+  let frame=0;
   const endFrame=beginLiveFrame();
   const st=style(supportsStyle(options.plain));
   const stop=()=>{endFrame();process.exit(0);};
@@ -105,13 +119,15 @@ async function watch(options) {
         snapshot=fresh; next=Date.now()+options.watch*1000;
       }
       redraw(()=>{
+        if (options.mascot) renderMascot(snapshot, options, frame);
         renderStatus(snapshot,options);
         console.log();
         const updated=Date.now()<updatedUntil;
         const sec=Math.max(0,Math.ceil((next-Date.now())/1000));
         console.log(`  ${st.badge(updated?"UPDATED":"RUNNING",updated)}${st.dim(options.lang==="en"?` next check ${sec}s · source every ${options.watch}s · Ctrl+C to stop`:` 次回確認 ${sec}秒 · ${options.watch}秒周期 · Ctrl+C で終了`)}`);
       });
-      await sleep(1000);
+      frame++;
+      await sleep(options.mascot ? 650 : 1000);
     }
   } finally { endFrame(); }
 }
@@ -122,41 +138,47 @@ function changed(a,b){
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 function printMissingCodex(lang){
-  console.error(lang==="en"?"Codex CLI was not found.":"Codex CLI が見つかりません。");
+  console.error(lang==="en"?"Codex runtime was not found.":"Codex runtime が見つかりません。");
   console.error("");
-  console.error("Install (official standalone):");
+  console.error(lang==="en"
+    ? "If the ChatGPT desktop app with Codex is installed, codex-usage will use its bundled runtime automatically."
+    : "Codex入りChatGPTデスクトップアプリがあれば、内蔵runtimeを自動検出して利用できます。");
+  console.error("");
+  console.error("Otherwise install Codex CLI (official standalone):");
   console.error("  curl -fsSL https://chatgpt.com/codex/install.sh | sh");
   console.error("or Homebrew:");
   console.error("  brew install --cask codex");
-  console.error("Then run `codex`, sign in with ChatGPT, and retry `codex-usage`.");
-  console.error("Run `codex-usage doctor` for diagnostics.");
+  console.error("");
+  console.error("Run `codex-usage doctor` for discovery details.");
 }
 function printFetchError(err,lang){
   console.error(lang==="en"?`Failed to fetch usage: ${err.message}`:`取得失敗: ${err.message}`);
   console.error("");
   console.error(lang==="en"?"Try:":"確認:");
   console.error("  codex-usage doctor");
-  console.error("  codex");
-  console.error("If Codex works but this tool cannot find it, set CODEX_CLI=/full/path/to/codex.");
+  console.error("If auto-discovery fails, set CODEX_CLI=/full/path/to/codex.");
 }
 
 function printHelp(lang){
   const en=lang==="en";
-  console.log("Codex Usage for Mac");
+  console.log(`Codex Usage for Mac v${VERSION}`);
   console.log(en?"Terminal meter for Codex 5-hour and weekly usage limits.":"Codex の5時間・週次使用枠をMacのTerminalで確認するCLIです。");
   console.log();
   console.log(en?"Usage:":"使い方:");
   console.log("  codex-usage");
-  console.log("  codex-usage --watch 60");
+  console.log("  codex-usage --watch 60 --mascot");
   console.log("  codex-usage history --30d");
   console.log("  codex-usage doctor");
+  console.log("  codex-usage update");
   console.log("  codex-usage --json");
   console.log();
-  console.log(en?"Options:":"オプション:");
+  console.log(en?"Commands / options:":"コマンド / オプション:");
   console.log("  status                 default live snapshot");
   console.log("  history                local usage history / heatmap");
-  console.log("  doctor                 diagnose macOS / Node / Codex / login");
+  console.log("  doctor                 diagnose macOS / Node / Codex runtime / account");
+  console.log("  update                 install latest GitHub Release (or main fallback)");
   console.log("  --watch [sec]          refresh in place (default 60s, min 10s)");
+  console.log("  --mascot               show animated quota buddy");
   console.log("  --days N / --30d       history range (1–30 days)");
   console.log("  --night 00:00-06:00    night band on weekly rail");
   console.log("  --width 56             timeline width (28–72)");
@@ -164,9 +186,10 @@ function printHelp(lang){
   console.log("  --plain                no ANSI styling / ASCII-friendly rail");
   console.log("  --en / --ja            display language");
   console.log("  --lang en|ja           display language");
+  console.log("  --version / -v         show version");
   console.log("  --self-test            offline tests");
   console.log();
-  console.log("Set CODEX_CLI=/full/path/to/codex to override Codex CLI discovery.");
+  console.log("Codex discovery: CODEX_CLI → PATH → ChatGPT.app bundled runtime → legacy Codex.app runtime.");
 }
 
 function selfTest(){
@@ -182,9 +205,11 @@ function selfTest(){
       primary:{usedPercent:29,windowDurationMins:300,resetsAt:reset},
       secondary:{usedPercent:35,windowDurationMins:10080,resetsAt:reset}
     }}}};
-    const parsed=parseUsageResponse(response,new Date());
+    const parsed=parseUsageResponse(response,new Date(start.getTime()+42*3600_000));
     near(parsed.weekly.usedPercent,35,0.001,"weekly parse");
     near(parsed.fiveHour.usedPercent,29,0.001,"5h parse");
+    const mood=chooseMood(parsed,{night,lang:"ja",plain:true});
+    if(!["cruising","busy","warm","critical"].includes(mood)) throw new Error("mascot mood");
     console.log("Self-tests passed.");
     return 0;
   }catch(err){console.error(`Self-test failed: ${err.message}`);return 1;}
