@@ -21,7 +21,7 @@ Recommended:
   brew install node
 
 If Homebrew is not installed, install Node.js from https://nodejs.org/ and rerun:
-  ./install.sh
+  bash install.sh
 EOF
   exit 1
 fi
@@ -38,6 +38,12 @@ rm -rf "$INSTALL_ROOT"
 mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
 cp -R "$SCRIPT_DIR/bin" "$SCRIPT_DIR/src" "$SCRIPT_DIR/package.json" "$INSTALL_ROOT/"
 chmod +x "$INSTALL_ROOT/bin/codex-usage.mjs"
+
+if ! node "$INSTALL_ROOT/bin/codex-usage.mjs" --self-test >/dev/null; then
+  rm -rf "$INSTALL_ROOT"
+  fail "Installed files failed the offline self-test."
+fi
+
 ln -sfn "$INSTALL_ROOT/bin/codex-usage.mjs" "$BIN_DIR/$APP_NAME"
 
 PATH_NOTE=0
@@ -47,7 +53,7 @@ case ":$PATH:" in
 esac
 
 say ""
-say "✓ codex-usage installed"
+say "✓ codex-usage installed and self-test passed"
 
 if ! command -v codex >/dev/null 2>&1; then
   cat <<'EOF'
@@ -81,6 +87,9 @@ Add this line to ~/.zshrc:
 
 Then reload:
   source ~/.zshrc
+
+Finally run:
+  codex-usage doctor
 EOF
 else
   say ""
