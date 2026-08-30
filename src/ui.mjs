@@ -69,14 +69,63 @@ export class Card {
   }
 }
 
+export function createLiveFrame() {
+  const interactive = Boolean(process.stdout.isTTY);
+  let width = terminalSize().width;
+  let height = terminalSize().height;
+  let closed = false;
+
+  if (interactive) {
+    process.stdout.write("\u001b[?1049h\u001b[2J\u001b[H\u001b[?25l");
+  }
+
+  return {
+    get width() { return terminalSize().width; },
+    get height() { return terminalSize().height; },
+    checkResize() {
+      if (!interactive) return false;
+      const size = terminalSize();
+      if (size.width === width && size.height === height) return false;
+      width = size.width;
+      height = size.height;
+      this.reset();
+      return true;
+    },
+    reset() {
+      if (interactive) process.stdout.write("\u001b[2J\u001b[H");
+    },
+    render(draw) {
+      if (!interactive) {
+        draw();
+        return;
+      }
+      process.stdout.write("\u001b[H");
+      draw();
+      process.stdout.write("\u001b[J");
+    },
+    close() {
+      if (closed) return;
+      closed = true;
+      if (interactive) process.stdout.write("\u001b[?25h\u001b[?1049l");
+    },
+  };
+}
+
+// Backward-compatible wrappers used by older callers.
 export function beginLiveFrame() {
-  if (!process.stdout.isTTY) return () => {};
-  process.stdout.write("\u001b[?25l\u001b[2J\u001b[H");
-  return () => process.stdout.write("\u001b[?25h\n");
+  const frame = createLiveFrame();
+  return () => frame.close();
 }
 
 export function redraw(draw) {
   if (process.stdout.isTTY) process.stdout.write("\u001b[H");
   draw();
   if (process.stdout.isTTY) process.stdout.write("\u001b[J");
+}
+
+function terminalSize() {
+  return {
+    width: Math.max(1, Number(process.stdout.columns) || 120),
+    height: Math.max(1, Number(process.stdout.rows) || 40),
+  };
 }
