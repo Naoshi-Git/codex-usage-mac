@@ -286,8 +286,8 @@ struct CircularGauge: View {
             Circle()
                 .stroke(Color.white.opacity(0.18), lineWidth: 4.2)
             Circle()
-                // Keep the accent arc intentionally compact for the edge widget.
-                .trim(from: 0, to: max(0.02, min(0.70, value / 100)))
+                // Show the actual remaining percentage; it may reach the full circle.
+                .trim(from: 0, to: max(0.02, min(1, value / 100)))
                 .stroke(color, style: StrokeStyle(lineWidth: 4.2, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.easeOut(duration: 0.35), value: value)
